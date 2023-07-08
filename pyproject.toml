@@ -9,3 +9,4 @@ packages = [{include = "addon_item_warehouse"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
+fastapi = "^0.100.0"
