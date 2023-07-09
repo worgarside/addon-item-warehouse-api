@@ -41,6 +41,12 @@ def create_warehouse(
             detail=f"Warehouse already exists. Created at {db_warehouse.created_at}",
         )
 
+    if warehouse.name == "warehouses":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Warehouse name '{warehouse.name}' is reserved.",
+        )
+
     return crud.create_warehouse(db, warehouse)
 
 

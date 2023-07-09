@@ -8,7 +8,10 @@ from item_warehouse.src.app.schemas import WarehouseCreate
 
 def create_warehouse(db: Session, warehouse: WarehouseCreate) -> WarehouseModel:
     """Create a warehouse."""
-    db_warehouse = WarehouseModel(name=warehouse.name, created_at=warehouse.created_at)
+    db_warehouse = WarehouseModel(**warehouse.model_dump())
+
+    db_warehouse.create_item_table()
+
     db.add(db_warehouse)
     db.commit()
     db.refresh(db_warehouse)
