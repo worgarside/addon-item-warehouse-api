@@ -86,6 +86,9 @@ repos:
           - --show-error-codes
         additional_dependencies:
           - fastapi
+          - pydantic
+          - sqlalchemy
+          - sqlalchemy-stubs
 
   - repo: local
     hooks:

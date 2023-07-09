@@ -10,3 +10,85 @@ packages = [{include = "addon_item_warehouse"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.100.0"
+sqlalchemy = "^2.0.18"
+python-dotenv = "^1.0.0"
+pymysql = "^1.1.0"
+
+[tool.poetry.group.dev.dependencies]
+uvicorn = "^0.22.0"
+
+
+[tool.black]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+show_error_codes = true
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+disallow_untyped_defs = true
+mypy_path = "item_warehouse/src"
+plugins=[
+  "pydantic.mypy",
+  "sqlmypy",
+]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
+
+[tool.codespell]
+ignore-words-list = "hass"
+skip = '*.json,*.csv,*.xml,*.lock'
+
+[tool.pycln]
+path = "*"
+expand_stars = true
+all = true
+no_gitignore = false
+
+[tool.ruff]
+line-length = 100
+select = [
+  # https://github.com/charliermarsh/ruff#supported-rules
+  "B",  # Flake8 bugbear
+  "C4", # Flake8 comprehensions
+  "E",   # Pycodestyle errors
+  "ERA", # Eradicate commented out code
+  "F",   # Pyflakes
+  "N",   # PEP8 Naming
+  "RUF", # Ruff-specific rules
+  "UP",  # PyUpgrade
+  "W",   # Pycodestyle warnings
+]
+ignore = [
+  "D107",  # public-init
+  "D202",  # no-blank-line-after-function
+  "D203",  # one-blank-line-before-class
+  "D213",  # multi-line-summary-second-line
+  "D400",  # first-line-end-with-period
+  "D406",  # new-line-after-section-name
+  "D407",  # dashed-underline-after-section
+  "UP037", # quoted-annotation
+]
