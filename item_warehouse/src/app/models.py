@@ -1,8 +1,8 @@
 """SQLAlchemy models for item_warehouse."""
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
+from sqlalchemy import JSON, Column, DateTime, Integer, String
 
-from .database import Base
+from .database import Base, engine
 
 
 class Warehouse(Base):  # type: ignore[misc]
@@ -17,18 +17,19 @@ class Warehouse(Base):  # type: ignore[misc]
     name = Column(String(255), unique=True, index=True)
     item_name = Column(String(255), nullable=False)
     item_attributes = Column(JSON, nullable=False)
-    created_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False)
 
+    def create_item_table(self) -> None:
+        """Create a table for storing items in this warehouse."""
 
-class ExampleItem(Base):  # type: ignore[misc]
-    """Example item for testing."""
+        _ = type(
+            self.item_name,
+            (Base,),
+            {
+                "__tablename__": self.name,
+                "id": Column(Integer, primary_key=True, index=True),
+                "created_at": Column(DateTime),
+            },
+        )
 
-    __tablename__ = "example_warehouse"
-
-    id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime)
-    name = Column(String(255), unique=True, index=True)
-    age = Column(Integer)
-    height = Column(Integer)
-    weight = Column(Integer)
-    alive = Column(Boolean)
+        Base.metadata.create_all(bind=engine)
