@@ -90,3 +90,12 @@ def update_warehouse(
     """Update a warehouse in a warehouse."""
     _ = warehouse_id
     return {"message": "warehouse has been updated!"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    LOGGER.info("Starting server...")
+    LOGGER.debug("http://0.0.0.0:8000/docs")
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -2,7 +2,7 @@
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
 
-from .database import Base, engine
+from .database import Base
 
 
 class Warehouse(Base):  # type: ignore[misc]
@@ -18,21 +18,6 @@ class Warehouse(Base):  # type: ignore[misc]
     item_name = Column(String(255), nullable=False)
     item_attributes = Column(JSON, nullable=False)
     created_at = Column(DateTime)
-
-    def create_item_table(self) -> None:
-        """Create a table for storing items in this warehouse."""
-
-        Item = type(
-            self.item_name,
-            (Base,),
-            {
-                "__tablename__": self.item_name,
-                "id": Column(Integer, primary_key=True, index=True),
-                "created_at": Column(DateTime),
-            },
-        )
-
-        Base.metadata.create_all(bind=engine)
 
 
 class ExampleItem(Base):  # type: ignore[misc]

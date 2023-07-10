@@ -89,6 +89,7 @@ repos:
           - pydantic
           - sqlalchemy
           - sqlalchemy-stubs
+          - uvicorn
 
   - repo: local
     hooks:
