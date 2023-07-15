@@ -3,20 +3,13 @@
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from pydantic import ValidationError, create_model
+from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
 
-from item_warehouse.src.app._dependencies import get_db
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
-from item_warehouse.src.app.schemas import (
-    WAREHOUSE_SCHEMAS,
-    ItemAttributeType,
-    ItemBase,
-    ItemFieldDefinition,
-    WarehouseCreate,
-)
+from item_warehouse.src.app.schemas import WAREHOUSE_SCHEMAS, ItemBase, WarehouseCreate
 
 from ._exceptions import HttpValidationError, WarehouseNotFoundError
 
@@ -34,42 +27,8 @@ add_stream_handler(LOGGER)
 # Warehouse Operations
 
 
-def _create_pydantic_item_base_schema(
-    item_name: str,
-    item_schema: dict[str, ItemFieldDefinition[ItemAttributeType]] | dict[str, str],
-) -> ItemBase:
-    """Create a Pydantic schema from the SQLAlchemy model."""
-
-    # If this is called with the result from `get_item_schemas` then the field
-    # definitions need to be instatiated as `ItemFieldDefinition` objects.
-    item_schema_parsed: dict[str, ItemFieldDefinition[ItemAttributeType]] = {
-        field_name: (
-            field_definition
-            if isinstance(field_definition, ItemFieldDefinition)
-            else ItemFieldDefinition.model_validate(field_definition)
-        )
-        for field_name, field_definition in item_schema.items()
-    }
-
-    pydantic_schema = {}
-
-    for field_name, field_definition in item_schema_parsed.items():
-        pydantic_schema[field_name] = (
-            field_definition.type().python_type,
-            field_definition.default,
-        )
-
-    item_name_camel_case = "".join(word.capitalize() for word in item_name.split("_"))
-
-    schema: ItemBase = create_model(  # type: ignore[call-overload]
-        __model_name=item_name_camel_case,
-        __base__=ItemBase,
-        **pydantic_schema,
-    )
-
-    LOGGER.info("Created Pydantic schema %r: %s", schema, schema.model_json_schema())
-
-    return schema
+# def _populate_warehouse_lookups() -> None:
+# """Populate the warehouse lookups from pre-existing values in the database."""
 
 
 def create_warehouse(db: Session, warehouse: WarehouseCreate) -> WarehouseModel:
@@ -78,20 +37,12 @@ def create_warehouse(db: Session, warehouse: WarehouseCreate) -> WarehouseModel:
         **warehouse.model_dump(exclude_unset=True, by_alias=True)
     )
 
-    db_warehouse.create_warehouse()
-    item_schema = _create_pydantic_item_base_schema(
-        warehouse.item_name, warehouse.item_schema
-    )
-
-    LOGGER.info(
-        "Created item schema %r with item name %r", item_schema, warehouse.item_name
-    )
-
-    WAREHOUSE_SCHEMAS[warehouse.name] = item_schema
+    db_warehouse.intialise_warehouse()
 
     db.add(db_warehouse)
     db.commit()
     db.refresh(db_warehouse)
+
     return db_warehouse
 
 
@@ -207,7 +158,7 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
     LOGGER.debug("WAREHOUSE_SCHEMAS: %r", WAREHOUSE_SCHEMAS)
 
     try:
-        item_schema: ItemBase = WAREHOUSE_SCHEMAS[warehouse_name].model_validate(item)
+        item_schema: ItemBase = warehouse.item_schema_class.model_validate(item)
     except ValidationError as exc:
         raise HttpValidationError(exc) from exc
 
@@ -219,33 +170,3 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
 
     # Re-parse so that we've got any new/updated values from the database.
     return WAREHOUSE_SCHEMAS[warehouse_name].model_validate(db_item.as_dict())
-
-
-def _populate_warehouse_lookups() -> None:
-    """Populate the warehouse lookups from pre-existing values in the database."""
-    WAREHOUSE_SCHEMAS.update(
-        {
-            warehouse_name: _create_pydantic_item_base_schema(item_name, item_schema)
-            for warehouse_name, item_name, item_schema in get_warehouse_item_schemas(
-                next(get_db("`WAREHOUSE_SCHEMAS` population")),
-                allow_no_warehouse_table=True,
-            )
-        }
-    )
-
-    LOGGER.debug("WAREHOUSE_SCHEMAS: %r", WAREHOUSE_SCHEMAS)
-
-    for warehouse in get_warehouses(
-        next(get_db("`Warehouse._ITEM_MODELS` population")),
-        allow_no_warehouse_table=True,
-    ):
-        # Just accessing the item_model property will create the SQLAlchemy model.
-        _ = warehouse.item_model
-
-    LOGGER.debug(
-        "Warehouse._ITEM_MODELS: %r",
-        WarehouseModel._ITEM_MODELS,  # pylint: disable=protected-access
-    )
-
-
-_populate_warehouse_lookups()

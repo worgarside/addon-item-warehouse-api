@@ -1,6 +1,8 @@
 """API for managing warehouses and items."""
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from enum import StrEnum, auto
 from json import dumps
 from logging import getLogger
@@ -12,7 +14,7 @@ from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app import crud
 from item_warehouse.src.app._dependencies import get_db
-from item_warehouse.src.app.database import Base, engine
+from item_warehouse.src.app.database import Base, SessionLocal, engine
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
 from item_warehouse.src.app.schemas import ItemBase, Warehouse, WarehouseCreate
 
@@ -23,7 +25,37 @@ add_stream_handler(LOGGER)
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Populate the item model/schema lookups before the application lifecycle starts."""
+
+    db = SessionLocal()
+
+    try:
+        for warehouse in crud.get_warehouses(
+            db,
+            allow_no_warehouse_table=True,
+        ):
+            # Just accessing the item_model property will create the SQLAlchemy model.
+            __ = warehouse.item_model
+            ___ = warehouse.item_schema_class
+    finally:
+        db.close()
+
+    LOGGER.debug(
+        "Warehouse._ITEM_SCHEMAS: %r",
+        WarehouseModel._ITEM_SCHEMAS,  # pylint: disable=protected-access
+    )
+    LOGGER.debug(
+        "Warehouse._ITEM_MODELS: %r",
+        WarehouseModel._ITEM_MODELS,  # pylint: disable=protected-access
+    )
+
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 class ApiTag(StrEnum):

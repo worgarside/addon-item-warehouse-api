@@ -5,12 +5,17 @@ from json import dumps
 from logging import getLogger
 from typing import ClassVar
 
+from pydantic import create_model
 from sqlalchemy import JSON, Column, DateTime, Integer, String
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app._exceptions import DuplicateColumnError
-from item_warehouse.src.app.schemas import ItemAttributeType, ItemFieldDefinition
+from item_warehouse.src.app.schemas import (
+    ItemAttributeType,
+    ItemBase,
+    ItemFieldDefinition,
+)
 
 from .database import Base, engine
 
@@ -25,6 +30,7 @@ class Warehouse(Base):  # type: ignore[misc,valid-type]
     __tablename__ = "warehouse"
 
     _ITEM_MODELS: ClassVar[dict[str, DeclarativeMeta]] = {}
+    _ITEM_SCHEMAS: ClassVar[dict[str, ItemBase]] = {}
 
     name = Column(
         name="name", type_=String(255), primary_key=True, unique=True, index=True
@@ -35,7 +41,7 @@ class Warehouse(Base):  # type: ignore[misc,valid-type]
         name="created_at", type_=DateTime, nullable=False, default=datetime.utcnow
     )
 
-    def create_warehouse(self) -> None:
+    def intialise_warehouse(self) -> None:
         """Create a new physical table for storing items in."""
 
         LOGGER.info("Creating warehouse %r", self.name)
@@ -119,3 +125,44 @@ class Warehouse(Base):  # type: ignore[misc,valid-type]
             )
 
         return self._ITEM_MODELS[self.name]
+
+    @property
+    def item_schema_class(self) -> ItemBase:
+        """Create a Pydantic schema from the SQLAlchemy model."""
+
+        if self.name not in self._ITEM_SCHEMAS:
+            item_schema_parsed: dict[str, ItemFieldDefinition[ItemAttributeType]]
+
+            item_schema_parsed = {
+                field_name: ItemFieldDefinition.model_validate(field_definition)
+                for (
+                    field_name,
+                    field_definition,
+                ) in self.item_schema.items()  # type: ignore[union-attr]
+            }
+
+            pydantic_schema = {}
+
+            for field_name, field_definition in item_schema_parsed.items():
+                pydantic_schema[field_name] = (
+                    field_definition.type().python_type,
+                    field_definition.default,
+                )
+
+            item_name_camel_case = "".join(
+                word.capitalize() for word in self.item_name.split("_")
+            )
+
+            schema: ItemBase = create_model(  # type: ignore[call-overload]
+                __model_name=item_name_camel_case,
+                __base__=ItemBase,
+                **pydantic_schema,
+            )
+
+            LOGGER.info(
+                "Created Pydantic schema %r: %s", schema, schema.model_json_schema()
+            )
+
+            self._ITEM_SCHEMAS[self.name] = schema
+
+        return self._ITEM_SCHEMAS[self.name]
