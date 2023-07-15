@@ -3,7 +3,6 @@
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from fastapi import HTTPException
 from pydantic import ValidationError, create_model
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -19,7 +18,7 @@ from item_warehouse.src.app.schemas import (
     WarehouseCreate,
 )
 
-from ._exceptions import WarehouseNotFoundError
+from ._exceptions import HttpValidationError, WarehouseNotFoundError
 
 if TYPE_CHECKING:
     from pydantic.main import IncEx
@@ -210,17 +209,7 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
     try:
         item_schema: ItemBase = WAREHOUSE_SCHEMAS[warehouse_name].model_validate(item)
     except ValidationError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=[
-                {
-                    "msg": err["msg"],
-                    "loc": err["loc"],
-                    "type": err["type"],
-                }
-                for err in exc.errors()
-            ],
-        ) from exc
+        raise HttpValidationError(exc) from exc
 
     db_item = warehouse.item_model(**item_schema.model_dump())
 
