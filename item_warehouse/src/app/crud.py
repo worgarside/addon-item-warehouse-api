@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
-from item_warehouse.src.app.schemas import ItemBase, WarehouseCreate
+from item_warehouse.src.app.schemas import (
+    ItemBase,
+    ItemResponse,
+    ItemSchema,
+    WarehouseCreate,
+)
 
 from ._exceptions import HttpValidationError, WarehouseNotFoundError
 
@@ -92,7 +97,7 @@ def get_warehouses(
 # Item Schema Operations
 
 
-def get_item_model(db: Session, /, item_name: str) -> dict[str, str] | None:
+def get_item_schema(db: Session, /, item_name: str) -> ItemSchema | None:
     """Get an item's schema."""
 
     if (
@@ -105,44 +110,17 @@ def get_item_model(db: Session, /, item_name: str) -> dict[str, str] | None:
     return results[0]  # type: ignore[return-value]
 
 
-def get_item_schemas(db: Session, /) -> dict[str, dict[str, str]]:
+def get_item_schemas(db: Session, /) -> dict[str, ItemSchema]:
     """Get a list of items and their schemas."""
     return dict(db.query(WarehouseModel.item_name, WarehouseModel.item_schema))
-
-
-def get_warehouse_item_schemas(
-    db: Session, *, allow_no_warehouse_table: bool = False
-) -> list[tuple[str, str, dict[str, str]]]:
-    """Get a list of warehouses and their items' schemas.
-
-    Args:
-        db (Session): The database session to use.
-        allow_no_warehouse_table (bool, optional): Whether to suppress the error
-            thrown because there is no `warehouse` table. Defaults to False.
-
-    Returns:
-        list[tuple[str, str, dict[str, str]]]: A list of tuples containing the warehouse
-            name, item name, and item schema.
-    """
-
-    try:
-        return db.query(
-            WarehouseModel.name, WarehouseModel.item_name, WarehouseModel.item_schema
-        ).all()
-    except OperationalError as exc:
-        if (
-            allow_no_warehouse_table
-            and f"no such table: {WarehouseModel.__tablename__}" in str(exc)
-        ):
-            return []
-
-        raise
 
 
 # Item Operations
 
 
-def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> ItemBase:
+def create_item(
+    db: Session, warehouse_name: str, item: dict[str, object]
+) -> ItemResponse:
     """Create an item in a warehouse."""
 
     warehouse = get_warehouse(db, warehouse_name)
@@ -162,7 +140,9 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
     db.refresh(db_item)
 
     # Re-parse so that we've got any new/updated values from the database.
-    return warehouse.item_schema_class.model_validate(db_item.as_dict())
+    return warehouse.item_schema_class.model_validate(
+        db_item.as_dict()
+    )  # type: ignore[return-value]
 
 
 def get_items(
@@ -173,7 +153,7 @@ def get_items(
     *,
     offset: int = 0,
     limit: int = 100,
-) -> list[dict[str, object]]:
+) -> list[ItemResponse]:
     """Get a list of items in a warehouse.
 
     Args:
@@ -216,4 +196,4 @@ def get_items(
 
     results = db.query(*fields).offset(offset).limit(limit).all()
 
-    return [dict(zip(field_names, row, strict=True)) for row in results]
+    return [dict(zip(field_names, row, strict=True)) for row in results]  # type: ignore[misc]

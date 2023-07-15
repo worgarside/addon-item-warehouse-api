@@ -71,6 +71,12 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
         "extra": "forbid",
     }
 
+    @field_serializer("type", return_type=str, when_used="json")
+    def serialize_type(self, typ: T) -> str:
+        """Serialize the Item type."""
+
+        return typ.__name__.lower()
+
     @field_validator("type", mode="before")
     def validate_type(
         cls,  # noqa: N805
@@ -121,25 +127,6 @@ class WarehouseBase(BaseModel):
     item_schema: dict[str, ItemFieldDefinition[ItemAttributeType]]
 
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
-
-    @field_serializer("item_schema")
-    def serialize_item_schema(
-        self, item_schema: dict[str, ItemFieldDefinition[ItemAttributeType]]
-    ) -> dict[str, dict[str, bool | str]]:
-        """Serialize the Warehouse item_schema."""
-
-        serialized_schema = {}
-
-        for name, definition in item_schema.items():
-            serialized_schema[name] = {
-                key: value
-                for key, value in definition.model_dump(exclude_unset=True).items()
-                if key != "type"
-            }
-
-            serialized_schema[name]["type"] = definition.type.__name__.lower()
-
-        return serialized_schema
 
     @field_validator("name")
     def validate_name(cls, name: str) -> str:  # noqa: N805
@@ -213,7 +200,19 @@ class ItemBase(BaseModel):
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    model_config = {
+    model_config: ClassVar[ConfigDict] = {
         "arbitrary_types_allowed": True,
         "extra": "forbid",
     }
+
+
+class ItemResponse(ItemBase):
+    """Base model for items."""
+
+    model_config: ClassVar[ConfigDict] = {
+        "arbitrary_types_allowed": True,
+        "extra": "allow",
+    }
+
+
+ItemSchema = dict[str, ItemFieldDefinition[ItemAttributeType]]

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from enum import StrEnum, auto
 from json import dumps
 from logging import getLogger
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Response, status
 from fastapi.params import Query
@@ -17,7 +17,12 @@ from item_warehouse.src.app import crud
 from item_warehouse.src.app._dependencies import get_db
 from item_warehouse.src.app.database import Base, SessionLocal, engine
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
-from item_warehouse.src.app.schemas import ItemBase, Warehouse, WarehouseCreate
+from item_warehouse.src.app.schemas import (
+    ItemResponse,
+    ItemSchema,
+    Warehouse,
+    WarehouseCreate,
+)
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
@@ -89,7 +94,7 @@ def create_warehouse(
             f" at {db_warehouse.created_at}",
         )
 
-    if crud.get_item_model(db, warehouse.item_name) is not None:
+    if crud.get_item_schema(db, warehouse.item_name) is not None:
         raise HTTPException(
             status_code=400,
             detail=f"Item {warehouse.item_name!r} already exists.",
@@ -153,12 +158,16 @@ def update_warehouse(
 # Item Schema Endpoints
 
 
-@app.get("/v1/items/{item_name}/schema/", tags=[ApiTag.ITEM_SCHEMA])
+@app.get(
+    "/v1/items/{item_name}/schema/",
+    response_model=ItemSchema,
+    tags=[ApiTag.ITEM_SCHEMA],
+)
 def get_item_schema(
     item_name: str, db: Session = Depends(get_db)  # noqa: B008
-) -> dict[str, str]:
+) -> ItemSchema:
     """Get an item's schema."""
-    if (item_model := crud.get_item_model(db, item_name)) is None:
+    if (item_model := crud.get_item_schema(db, item_name)) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Item {item_name!r} not found",
@@ -167,10 +176,14 @@ def get_item_schema(
     return item_model
 
 
-@app.get("/v1/items/schemas", tags=[ApiTag.ITEM_SCHEMA])
+@app.get(
+    "/v1/items/schemas",
+    response_model=dict[str, ItemSchema],
+    tags=[ApiTag.ITEM_SCHEMA],
+)
 def get_item_schemas(
     db: Session = Depends(get_db),  # noqa: B008
-) -> dict[str, dict[str, str]]:
+) -> dict[str, ItemSchema]:
     """Get a list of items' names and schemas."""
     return crud.get_item_schemas(db)
 
@@ -179,7 +192,9 @@ def get_item_schemas(
 
 
 @app.post(
-    "/v1/warehouses/{warehouse_name}/items", response_model=Any, tags=[ApiTag.ITEM]
+    "/v1/warehouses/{warehouse_name}/items",
+    response_model=ItemResponse,
+    tags=[ApiTag.ITEM],
 )
 def create_item(
     warehouse_name: str,
@@ -199,7 +214,7 @@ def create_item(
         ),
     ],
     db: Session = Depends(get_db),  # noqa: B008
-) -> ItemBase:
+) -> ItemResponse:
     """Create an item."""
 
     LOGGER.info("POST\t/v1/warehouses/%s/items", warehouse_name)
@@ -210,7 +225,7 @@ def create_item(
 
 @app.get(
     "/v1/warehouses/{warehouse_name}/items",
-    response_model=list[Any],
+    response_model=list[ItemResponse],
     tags=[ApiTag.ITEM],
 )
 def get_items(
@@ -225,7 +240,7 @@ def get_items(
         pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
     ),
     db: Session = Depends(get_db),  # noqa: B008
-) -> list[dict[str, object]]:
+) -> list[ItemResponse]:
     """Get items in a warehouse."""
 
     LOGGER.info("GET\t/v1/warehouses/%s/items", warehouse_name)
