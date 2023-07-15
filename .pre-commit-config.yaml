@@ -90,6 +90,7 @@ repos:
           - sqlalchemy
           - sqlalchemy-stubs
           - uvicorn
+          - wg-utilities
 
   - repo: local
     hooks:

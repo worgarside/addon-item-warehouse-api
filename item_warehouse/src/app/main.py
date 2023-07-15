@@ -1,36 +1,28 @@
 """API for managing warehouses and items."""
 from __future__ import annotations
 
-from collections.abc import Generator
-from logging import StreamHandler, getLogger
-from sys import stdout
-from wg_utilities.functions.json import JSONObj
+from json import dumps
+from logging import getLogger
+from typing import Annotated, Any
+
 from fastapi import Body, Depends, FastAPI, HTTPException, Response, status
 from sqlalchemy.orm import Session
-from collections.abc import Callable, MutableMapping, Sequence
+from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app import crud
-from item_warehouse.src.app.database import Base, SessionLocal, engine
-from item_warehouse.src.app.models import Warehouse as WarehouseModel
-from item_warehouse.src.app.schemas import Warehouse, WarehouseCreate
 from item_warehouse.src.app._dependencies import get_db
-from typing import Annotated, Union
+from item_warehouse.src.app.database import Base, engine
+from item_warehouse.src.app.models import Warehouse as WarehouseModel
+from item_warehouse.src.app.schemas import ItemBase, Warehouse, WarehouseCreate
+
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
-LOGGER.addHandler(StreamHandler(stdout))
+add_stream_handler(LOGGER)
 
-
-JSONVal = Union[
-    None, object, bool, str, float, int, list["JSONVal"], "JSONObj", dict[str, object]
-]
-JSONObj = MutableMapping[str, JSONVal]
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
-
-
 
 
 # Warehouse Endpoints
@@ -47,14 +39,14 @@ def create_warehouse(
             status_code=400,
             detail="Warehouse name 'warehouse' is reserved.",
         )
-    
+
     if (db_warehouse := crud.get_warehouse(db, warehouse.name)) is not None:
         raise HTTPException(
             status_code=400,
             detail=f"Warehouse {warehouse.name!r} already exists. Created"
             f" at {db_warehouse.created_at}",
         )
-    
+
     if crud.get_item_model(db, warehouse.item_name) is not None:
         raise HTTPException(
             status_code=400,
@@ -64,7 +56,7 @@ def create_warehouse(
     try:
         return crud.create_warehouse(db, warehouse)
     except Exception as exc:
-        LOGGER.exception(exc)
+        LOGGER.exception(repr(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f'Failed to create warehouse {warehouse.name!r}: "{exc}"',
@@ -73,7 +65,7 @@ def create_warehouse(
 
 @app.delete(
     "/v1/warehouses/{warehouse_name}",
-    # status_code=status.HTTP_204_NO_CONTENT,
+    # status_code=status.HTTP_204_NO_CONTENT,   # noqa: ERA001
     response_class=Response,
 )
 def delete_warehouse(
@@ -117,8 +109,9 @@ def update_warehouse(
 
 
 @app.get("/v1/items/{item_name}/schema/")
-def get_item_schema(item_name: str, db: Session = Depends(get_db)# noqa: B008
-                   ) -> dict[str, str]:
+def get_item_schema(
+    item_name: str, db: Session = Depends(get_db)  # noqa: B008
+) -> dict[str, str]:
     """Get an item's schema."""
     if (item_model := crud.get_item_model(db, item_name)) is None:
         raise HTTPException(
@@ -126,51 +119,52 @@ def get_item_schema(item_name: str, db: Session = Depends(get_db)# noqa: B008
             detail=f"Item {item_name!r} not found",
         )
 
-    return item_model[0]
+    return item_model
 
 
 @app.get("/v1/items/schemas")
 def get_item_schemas(
-    db: Session = Depends(get_db),# noqa: B008
-) -> dict[str, dict[str, str]]:  
+    db: Session = Depends(get_db),  # noqa: B008
+) -> dict[str, dict[str, str]]:
     """Get a list of items' names and schemas."""
     return crud.get_item_schemas(db)
 
+
 # Item Endpoints
 
-@app.post("/v1/warehouses/{warehouse_name}/items")
+
+@app.post("/v1/warehouses/{warehouse_name}/items", response_model=Any)
 def create_item(
-    warehouse_name: str, item: Annotated[
+    warehouse_name: str,
+    item: Annotated[
         dict[str, object],
         Body(
-            example={
-                "name":"Joe Bloggs",
-                "age": 42,
-                "salary": 123456,
-                "alive": True,
-                "hire_date": "2021-01-01",
-                "last_login": "2021-01-01T12:34:56"
-            }
-        )
-    ], db: Session = Depends(get_db)# noqa: B008
-) -> dict[str, str]:
+            examples=[
+                {
+                    "name": "Joe Bloggs",
+                    "age": 42,
+                    "salary": 123456,
+                    "alive": True,
+                    "hire_date": "2021-01-01",
+                    "last_login": "2021-01-01T12:34:56",
+                },
+            ]
+        ),
+    ],
+    db: Session = Depends(get_db),  # noqa: B008
+) -> ItemBase:
     """Create an item."""
-    
-    crud.create_item(db, warehouse_name, item)
 
-# @app.get("/v1/items/{item_name}")
-# def get_item(
-#     item_name: str, db: Session = Depends(get_db)# noqa: B008
-# ) -> dict[str, str]:
-#     """Get an item."""
-#     _ = item_name
-#     return {"message": "item has been retrieved!"}
+    LOGGER.info("POST\t/v1/warehouses/%s/items", warehouse_name)
+    LOGGER.debug(dumps(item))
+
+    return crud.create_item(db, warehouse_name, item)
 
 
 if __name__ == "__main__":
     import uvicorn
 
     LOGGER.info("Starting server...")
-    LOGGER.debug("http://0.0.0.0:8000/docs")
+    LOGGER.debug("http://localhost:8000/docs")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="localhost", port=8000)
