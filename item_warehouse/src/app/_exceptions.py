@@ -5,13 +5,13 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 
-class DuplicateColumnError(ValueError):
-    """Raised when a column is duplicated."""
+class DuplicateFieldError(ValueError):
+    """Raised when a field is duplicated."""
 
-    def __init__(self, column_name: str) -> None:
+    def __init__(self, field_name: str) -> None:
         """Initialize the exception."""
         super().__init__(
-            f"Duplicate column {column_name!r} found, unable to create table."
+            f"Duplicate field {field_name!r} found, unable to create table."
         )
 
 

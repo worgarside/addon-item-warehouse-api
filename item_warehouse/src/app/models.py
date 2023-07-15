@@ -10,7 +10,7 @@ from sqlalchemy import JSON, Column, DateTime, Integer, String
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
-from item_warehouse.src.app._exceptions import DuplicateColumnError
+from item_warehouse.src.app._exceptions import DuplicateFieldError
 from item_warehouse.src.app.schemas import (
     ItemAttributeType,
     ItemBase,
@@ -83,7 +83,7 @@ class Warehouse(Base):  # type: ignore[misc,valid-type]
 
             for field_name, _field_def in self.item_schema.items():  # type: ignore[union-attr]
                 if field_name in model_fields:
-                    raise DuplicateColumnError(field_name)
+                    raise DuplicateFieldError(field_name)
 
                 field_definition: ItemFieldDefinition[
                     ItemAttributeType

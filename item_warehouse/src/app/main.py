@@ -9,6 +9,7 @@ from logging import getLogger
 from typing import Annotated, Any
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Response, status
+from fastapi.params import Query
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
 
@@ -205,6 +206,35 @@ def create_item(
     LOGGER.debug(dumps(item))
 
     return crud.create_item(db, warehouse_name, item)
+
+
+@app.get(
+    "/v1/warehouses/{warehouse_name}/items",
+    response_model=list[Any],
+    tags=[ApiTag.ITEM],
+)
+def get_items(
+    warehouse_name: str,
+    offset: int = 0,
+    limit: int = 100,
+    fields: str
+    | None = Query(  # type: ignore[assignment] # noqa: B008
+        default=None,
+        example="age,salary,name,alive",
+        description="A comma-separated list of fields to return.",
+        pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
+    ),
+    db: Session = Depends(get_db),  # noqa: B008
+) -> list[dict[str, object]]:
+    """Get items in a warehouse."""
+
+    LOGGER.info("GET\t/v1/warehouses/%s/items", warehouse_name)
+
+    field_names = fields.split(",") if fields else None
+
+    return crud.get_items(
+        db, warehouse_name, offset=offset, limit=limit, field_names=field_names
+    )
 
 
 if __name__ == "__main__":

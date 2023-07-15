@@ -217,7 +217,3 @@ class ItemBase(BaseModel):
         "arbitrary_types_allowed": True,
         "extra": "forbid",
     }
-
-
-# Mapping of warehouse name to item schema.
-WAREHOUSE_SCHEMAS: dict[str, ItemBase] = {}

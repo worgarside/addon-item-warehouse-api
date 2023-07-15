@@ -3,13 +3,14 @@
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
-from item_warehouse.src.app.schemas import WAREHOUSE_SCHEMAS, ItemBase, WarehouseCreate
+from item_warehouse.src.app.schemas import ItemBase, WarehouseCreate
 
 from ._exceptions import HttpValidationError, WarehouseNotFoundError
 
@@ -27,11 +28,7 @@ add_stream_handler(LOGGER)
 # Warehouse Operations
 
 
-# def _populate_warehouse_lookups() -> None:
-# """Populate the warehouse lookups from pre-existing values in the database."""
-
-
-def create_warehouse(db: Session, warehouse: WarehouseCreate) -> WarehouseModel:
+def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> WarehouseModel:
     """Create a warehouse."""
     db_warehouse = WarehouseModel(
         **warehouse.model_dump(exclude_unset=True, by_alias=True)
@@ -46,22 +43,23 @@ def create_warehouse(db: Session, warehouse: WarehouseCreate) -> WarehouseModel:
     return db_warehouse
 
 
-def delete_warehouse(db: Session, warehouse_name: int) -> None:
+def delete_warehouse(db: Session, /, warehouse_name: int) -> None:
     """Delete a warehouse."""
     db.query(WarehouseModel).filter(WarehouseModel.id == warehouse_name).delete()
     db.commit()
 
 
-def get_warehouse(db: Session, name: str) -> WarehouseModel | None:
+def get_warehouse(db: Session, /, name: str) -> WarehouseModel | None:
     """Get a warehouse by its name."""
     return db.query(WarehouseModel).filter(WarehouseModel.name == name).first()
 
 
 def get_warehouses(
     db: Session,
+    /,
+    *,
     offset: int = 0,
     limit: int = 100,
-    *,
     allow_no_warehouse_table: bool = False,
 ) -> list[WarehouseModel]:
     """Get a list of warehouses.
@@ -94,7 +92,7 @@ def get_warehouses(
 # Item Schema Operations
 
 
-def get_item_model(db: Session, item_name: str) -> dict[str, str] | None:
+def get_item_model(db: Session, /, item_name: str) -> dict[str, str] | None:
     """Get an item's schema."""
 
     if (
@@ -107,7 +105,7 @@ def get_item_model(db: Session, item_name: str) -> dict[str, str] | None:
     return results[0]  # type: ignore[return-value]
 
 
-def get_item_schemas(db: Session) -> dict[str, dict[str, str]]:
+def get_item_schemas(db: Session, /) -> dict[str, dict[str, str]]:
     """Get a list of items and their schemas."""
     return dict(db.query(WarehouseModel.item_name, WarehouseModel.item_schema))
 
@@ -152,11 +150,6 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
     if warehouse is None:
         raise WarehouseNotFoundError(warehouse_name)
 
-    LOGGER.info(
-        "Instantiating item schema from warehouse item_name %r", warehouse.item_name
-    )
-    LOGGER.debug("WAREHOUSE_SCHEMAS: %r", WAREHOUSE_SCHEMAS)
-
     try:
         item_schema: ItemBase = warehouse.item_schema_class.model_validate(item)
     except ValidationError as exc:
@@ -169,4 +162,58 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
     db.refresh(db_item)
 
     # Re-parse so that we've got any new/updated values from the database.
-    return WAREHOUSE_SCHEMAS[warehouse_name].model_validate(db_item.as_dict())
+    return warehouse.item_schema_class.model_validate(db_item.as_dict())
+
+
+def get_items(
+    db: Session,
+    /,
+    warehouse_name: str,
+    field_names: list[str] | None = None,
+    *,
+    offset: int = 0,
+    limit: int = 100,
+) -> list[dict[str, object]]:
+    """Get a list of items in a warehouse.
+
+    Args:
+        db (Session): The database session to use.
+        warehouse_name (str): The name of the warehouse to get the items from.
+        field_names (list[str], optional): The names of the fields to return. Defaults
+            to None.
+        offset (int, optional): The offset to use when querying the database.
+            Defaults to 0.
+        limit (int, optional): The limit to use when querying the database. Defaults
+            to 100.
+
+    Returns:
+        list[dict[str, object]]: A list of items in the warehouse.
+
+    Raises:
+        WarehouseNotFoundError: Raised if the warehouse does not exist.
+    """
+
+    if (warehouse := get_warehouse(db, warehouse_name)) is None:
+        raise WarehouseNotFoundError(warehouse_name)
+
+    if not field_names:
+        return [  # type: ignore[var-annotated]
+            item.as_dict()
+            for item in db.query(warehouse.item_model).offset(offset).limit(limit).all()
+        ]
+
+    field_names = sorted(field_names)
+
+    try:
+        fields = tuple(
+            getattr(warehouse.item_model, field_name) for field_name in field_names
+        )
+    except AttributeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid field: {exc}",
+        ) from exc
+
+    results = db.query(*fields).offset(offset).limit(limit).all()
+
+    return [dict(zip(field_names, row, strict=True)) for row in results]
