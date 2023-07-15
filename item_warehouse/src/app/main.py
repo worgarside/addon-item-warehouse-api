@@ -1,6 +1,7 @@
 """API for managing warehouses and items."""
 from __future__ import annotations
 
+from enum import StrEnum, auto
 from json import dumps
 from logging import getLogger
 from typing import Annotated, Any
@@ -25,10 +26,18 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
+class ApiTag(StrEnum):
+    """API tags."""
+
+    ITEM = auto()
+    ITEM_SCHEMA = auto()
+    WAREHOUSE = auto()
+
+
 # Warehouse Endpoints
 
 
-@app.post("/v1/warehouses", response_model=Warehouse)
+@app.post("/v1/warehouses", response_model=Warehouse, tags=[ApiTag.WAREHOUSE])
 def create_warehouse(
     warehouse: WarehouseCreate, db: Session = Depends(get_db)  # noqa: B008
 ) -> WarehouseModel:
@@ -67,6 +76,7 @@ def create_warehouse(
     "/v1/warehouses/{warehouse_name}",
     # status_code=status.HTTP_204_NO_CONTENT,   # noqa: ERA001
     response_class=Response,
+    tags=[ApiTag.WAREHOUSE],
 )
 def delete_warehouse(
     warehouse_name: int, db: Session = Depends(get_db)  # noqa: B008
@@ -75,7 +85,9 @@ def delete_warehouse(
     crud.delete_warehouse(db, warehouse_name)
 
 
-@app.get("/v1/warehouses/{warehouse_name}", response_model=Warehouse)
+@app.get(
+    "/v1/warehouses/{warehouse_name}", response_model=Warehouse, tags=[ApiTag.WAREHOUSE]
+)
 def get_warehouse(
     warehouse_name: str, db: Session = Depends(get_db)  # noqa: B008
 ) -> WarehouseModel:
@@ -87,7 +99,7 @@ def get_warehouse(
     return db_warehouse
 
 
-@app.get("/v1/warehouses", response_model=list[Warehouse])
+@app.get("/v1/warehouses", response_model=list[Warehouse], tags=[ApiTag.WAREHOUSE])
 def get_warehouses(
     offset: int = 0, limit: int = 100, db: Session = Depends(get_db)  # noqa: B008
 ) -> list[WarehouseModel]:
@@ -96,7 +108,7 @@ def get_warehouses(
     return crud.get_warehouses(db, offset=offset, limit=limit)
 
 
-@app.put("/v1/warehouses/{warehouse_name}")
+@app.put("/v1/warehouses/{warehouse_name}", tags=[ApiTag.WAREHOUSE])
 def update_warehouse(
     warehouse_name: int,
 ) -> dict[str, str]:
@@ -108,7 +120,7 @@ def update_warehouse(
 # Item Schema Endpoints
 
 
-@app.get("/v1/items/{item_name}/schema/")
+@app.get("/v1/items/{item_name}/schema/", tags=[ApiTag.ITEM_SCHEMA])
 def get_item_schema(
     item_name: str, db: Session = Depends(get_db)  # noqa: B008
 ) -> dict[str, str]:
@@ -122,7 +134,7 @@ def get_item_schema(
     return item_model
 
 
-@app.get("/v1/items/schemas")
+@app.get("/v1/items/schemas", tags=[ApiTag.ITEM_SCHEMA])
 def get_item_schemas(
     db: Session = Depends(get_db),  # noqa: B008
 ) -> dict[str, dict[str, str]]:
@@ -133,7 +145,9 @@ def get_item_schemas(
 # Item Endpoints
 
 
-@app.post("/v1/warehouses/{warehouse_name}/items", response_model=Any)
+@app.post(
+    "/v1/warehouses/{warehouse_name}/items", response_model=Any, tags=[ApiTag.ITEM]
+)
 def create_item(
     warehouse_name: str,
     item: Annotated[
