@@ -4,7 +4,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ValidationError, create_model
+from pydantic import ValidationError, create_model
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
@@ -19,6 +19,8 @@ from item_warehouse.src.app.schemas import (
     WarehouseCreate,
 )
 
+from ._exceptions import WarehouseNotFoundError
+
 if TYPE_CHECKING:
     from pydantic.main import IncEx
 else:
@@ -28,26 +30,6 @@ else:
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
-
-# Exceptions
-
-
-class DuplicateColumnError(ValueError):
-    """Raised when a column is duplicated."""
-
-    def __init__(self, column_name: str) -> None:
-        """Initialize the exception."""
-        super().__init__(
-            f"Duplicate column {column_name!r} found, unable to create table."
-        )
-
-
-class WarehouseNotFoundError(Exception):
-    """Raised when a warehouse is not found."""
-
-    def __init__(self, warehouse_name: str) -> None:
-        """Initialize the exception."""
-        super().__init__(f"Warehouse {warehouse_name!r} not found.")
 
 
 # Warehouse Operations
@@ -126,10 +108,37 @@ def get_warehouse(db: Session, name: str) -> WarehouseModel | None:
 
 
 def get_warehouses(
-    db: Session, offset: int = 0, limit: int = 100
+    db: Session,
+    offset: int = 0,
+    limit: int = 100,
+    *,
+    allow_no_warehouse_table: bool = False,
 ) -> list[WarehouseModel]:
-    """Get a list of warehouses."""
-    return db.query(WarehouseModel).offset(offset).limit(limit).all()
+    """Get a list of warehouses.
+
+    Args:
+        db (Session): The database session to use.
+        offset (int, optional): The offset to use when querying the database.
+            Defaults to 0.
+        limit (int, optional): The limit to use when querying the database.
+            Defaults to 100.
+        allow_no_warehouse_table (bool, optional): Whether to suppress the error
+            thrown because there is no `warehouse` table. Defaults to False.
+
+    Returns:
+        list[WarehouseModel]: A list of warehouses.
+    """
+
+    try:
+        return db.query(WarehouseModel).offset(offset).limit(limit).all()
+    except OperationalError as exc:
+        if (
+            allow_no_warehouse_table
+            and f"no such table: {WarehouseModel.__tablename__}" in str(exc)
+        ):
+            return []
+
+        raise
 
 
 # Item Schema Operations
@@ -153,12 +162,33 @@ def get_item_schemas(db: Session) -> dict[str, dict[str, str]]:
     return dict(db.query(WarehouseModel.item_name, WarehouseModel.item_schema))
 
 
-# @on_exception(lambda _: None, raise_after_callback=False, default_return_value=[])
-def get_warehouse_item_schemas(db: Session) -> list[tuple[str, str, dict[str, str]]]:
-    """Get a list of warehouses and their items' schemas."""
-    return db.query(
-        WarehouseModel.name, WarehouseModel.item_name, WarehouseModel.item_schema
-    ).all()
+def get_warehouse_item_schemas(
+    db: Session, *, allow_no_warehouse_table: bool = False
+) -> list[tuple[str, str, dict[str, str]]]:
+    """Get a list of warehouses and their items' schemas.
+
+    Args:
+        db (Session): The database session to use.
+        allow_no_warehouse_table (bool, optional): Whether to suppress the error
+            thrown because there is no `warehouse` table. Defaults to False.
+
+    Returns:
+        list[tuple[str, str, dict[str, str]]]: A list of tuples containing the warehouse
+            name, item name, and item schema.
+    """
+
+    try:
+        return db.query(
+            WarehouseModel.name, WarehouseModel.item_name, WarehouseModel.item_schema
+        ).all()
+    except OperationalError as exc:
+        if (
+            allow_no_warehouse_table
+            and f"no such table: {WarehouseModel.__tablename__}" in str(exc)
+        ):
+            return []
+
+        raise
 
 
 # Item Operations
@@ -178,7 +208,7 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
     LOGGER.debug("WAREHOUSE_SCHEMAS: %r", WAREHOUSE_SCHEMAS)
 
     try:
-        item_schema: BaseModel = WAREHOUSE_SCHEMAS[warehouse_name].parse_obj(item)
+        item_schema: ItemBase = WAREHOUSE_SCHEMAS[warehouse_name].model_validate(item)
     except ValidationError as exc:
         raise HTTPException(
             status_code=400,
@@ -198,46 +228,35 @@ def create_item(db: Session, warehouse_name: str, item: dict[str, object]) -> It
     db.commit()
     db.refresh(db_item)
 
+    # Re-parse so that we've got any new/updated values from the database.
     return WAREHOUSE_SCHEMAS[warehouse_name].model_validate(db_item.as_dict())
 
 
-def _populate_warehouse_schema_lookup() -> None:
-    try:
-        WAREHOUSE_SCHEMAS.update(
-            {
-                warehouse_name: _create_pydantic_item_base_schema(
-                    item_name, item_schema
-                )
-                for warehouse_name, item_name, item_schema in get_warehouse_item_schemas(
-                    next(get_db("`WAREHOUSE_SCHEMAS` population"))
-                )
-            }
-        )
-    except OperationalError:
-        LOGGER.warning(
-            "Unable to populate WAREHOUSE_SCHEMAS, database not yet initialized."
-        )
-    else:
-        LOGGER.debug("WAREHOUSE_SCHEMAS: %r", WAREHOUSE_SCHEMAS)
+def _populate_warehouse_lookups() -> None:
+    """Populate the warehouse lookups from pre-existing values in the database."""
+    WAREHOUSE_SCHEMAS.update(
+        {
+            warehouse_name: _create_pydantic_item_base_schema(item_name, item_schema)
+            for warehouse_name, item_name, item_schema in get_warehouse_item_schemas(
+                next(get_db("`WAREHOUSE_SCHEMAS` population")),
+                allow_no_warehouse_table=True,
+            )
+        }
+    )
+
+    LOGGER.debug("WAREHOUSE_SCHEMAS: %r", WAREHOUSE_SCHEMAS)
+
+    for warehouse in get_warehouses(
+        next(get_db("`Warehouse._ITEM_MODELS` population")),
+        allow_no_warehouse_table=True,
+    ):
+        # Just accessing the item_model property will create the SQLAlchemy model.
+        _ = warehouse.item_model
+
+    LOGGER.debug(
+        "Warehouse._ITEM_MODELS: %r",
+        WarehouseModel._ITEM_MODELS,  # pylint: disable=protected-access
+    )
 
 
-def _populate_warehouse_model_lookup() -> None:
-    try:
-        for warehouse in get_warehouses(
-            next(get_db("`Warehouse._ITEM_MODELS` population"))
-        ):
-            # Just accessing the item_model property will create the SQLAlchemy model.
-            _ = warehouse.item_model
-    except OperationalError:
-        LOGGER.warning(
-            "Unable to populate Warehouse._ITEM_MODELS, database not yet initialized."
-        )
-    else:
-        LOGGER.debug(
-            "Warehouse._ITEM_MODELS: %r",
-            WarehouseModel._ITEM_MODELS,  # pylint: disable=protected-access
-        )
-
-
-_populate_warehouse_schema_lookup()
-_populate_warehouse_model_lookup()
+_populate_warehouse_lookups()

@@ -9,7 +9,7 @@ from sqlalchemy import JSON, Column, DateTime, Integer, String
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
-from item_warehouse.src.app.crud import DuplicateColumnError
+from item_warehouse.src.app._exceptions import DuplicateColumnError
 from item_warehouse.src.app.schemas import ItemAttributeType, ItemFieldDefinition
 
 from .database import Base, engine
