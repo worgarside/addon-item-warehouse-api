@@ -215,7 +215,7 @@ class ItemBase(BaseModel):
 
     model_config = {
         "arbitrary_types_allowed": True,
-        "extra": "allow",
+        "extra": "forbid",
     }
 
 
