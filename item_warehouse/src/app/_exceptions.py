@@ -15,6 +15,14 @@ class DuplicateFieldError(ValueError):
         )
 
 
+class SerializationError(RuntimeError):
+    """Raised when a value can't be serialized."""
+
+    def __init__(self, value: object) -> None:
+        """Initialize the exception."""
+        super().__init__(f"Unable to serialize {value!r}")
+
+
 class WarehouseNotFoundError(Exception):
     """Raised when a warehouse is not found."""
 

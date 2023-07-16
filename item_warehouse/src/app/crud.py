@@ -41,9 +41,13 @@ def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> WarehouseMod
 
     db_warehouse.intialise_warehouse()
 
-    db.add(db_warehouse)
-    db.commit()
-    db.refresh(db_warehouse)
+    try:
+        db.add(db_warehouse)
+        db.commit()
+        db.refresh(db_warehouse)
+    except OperationalError:
+        # TODO improve this to only drop if the row doesn't exist
+        db_warehouse.drop_warehouse(no_exist_ok=True)
 
     return db_warehouse
 
@@ -129,11 +133,15 @@ def create_item(
         raise WarehouseNotFoundError(warehouse_name)
 
     try:
+        LOGGER.debug("Validating item into schema: %r ", item)
         item_schema: ItemBase = warehouse.item_schema_class.model_validate(item)
     except ValidationError as exc:
         raise HttpValidationError(exc) from exc
 
-    db_item = warehouse.item_model(**item_schema.model_dump())
+    LOGGER.debug("Dumping item into model: %r", item_schema)
+
+    # Excluding unset values mean any default functions don't get returned as-is.
+    db_item = warehouse.item_model(**item_schema.model_dump(exclude_unset=True))
 
     db.add(db_item)
     db.commit()

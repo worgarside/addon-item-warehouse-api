@@ -3,14 +3,14 @@
 from datetime import date, datetime
 from json import dumps
 from logging import getLogger
-from typing import Any
+from typing import Any, ClassVar
 
-from sqlalchemy.engine import create_engine
+from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker  # type: ignore[attr-defined]
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
-from item_warehouse.src.app.schemas import ITEM_TYPE_TYPES, ItemFieldDefinition
+from item_warehouse.src.app.schemas import ITEM_TYPE_TYPES, DefaultFunction
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
@@ -26,63 +26,77 @@ add_stream_handler(LOGGER)
 SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
 
 
-def _custom_json_serializer(*args: Any, **kwargs: Any) -> str:
-    def _serialize(obj: Any) -> Any:
+class BaseExtra:
+    """Extra functionality for SQLAlchemy models."""
+
+    ENGINE: ClassVar[Engine]
+
+    def __init__(self, *_: Any, **__: Any) -> None:  # noqa: D107
+        raise NotImplementedError(  # noqa: TRY003
+            "Class BaseExtra should not be instantiated by itself or as the primary"
+            f" base class for a model. Use {Base.__name__} instead."
+        )
+
+    def as_dict(self) -> dict[str, object | None]:
+        """Convert a SQLAlchemy model to a dict.
+
+        Args:
+            self (DeclarativeMeta): The SQLAlchemy model to convert.
+
+        Raises:
+            TypeError: If this instance is not a SQLAlchemy model.
+
+        Returns:
+            dict[str, object | None]: The converted model.
+        """
+
+        if not isinstance(self, Base):
+            raise TypeError(  # noqa: TRY003
+                f"Expected a SQLAlchemy model, got {self.__class__!r}."
+            )
+
+        fields: dict[str, object | None] = {}
+
+        for field in dir(self):
+            if field.startswith("_") or field in (
+                "as_dict",
+                "metadata",
+                "registry",
+                "ENGINE",
+            ):
+                continue
+
+            fields[field] = self._serialize(getattr(self, field))
+
+        return fields
+
+    @classmethod
+    def _custom_json_serializer(cls, *args: Any, **kwargs: Any) -> str:
+        return dumps(*args, default=cls._serialize, **kwargs)
+
+    @classmethod
+    def _serialize(cls, obj: Any) -> Any:
+        if isinstance(obj, DefaultFunction):
+            return obj.ref
+
         if obj in ITEM_TYPE_TYPES:
             return obj.__name__.lower()
 
-        if isinstance(obj, ItemFieldDefinition):
-            return 1 / 0
+        if isinstance(obj, (date | datetime)):
+            return obj.isoformat()
+
+        dumps(obj)
 
         return obj
 
-    return dumps(*args, default=_serialize, **kwargs)
 
-
-engine = create_engine(
+BaseExtra.ENGINE = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    json_serializer=_custom_json_serializer,
+    json_serializer=BaseExtra._custom_json_serializer,  # pylint: disable=protected-access
     connect_args={"check_same_thread": False},
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base: DeclarativeMeta = declarative_base()
 
 
-def as_dict(self: DeclarativeMeta) -> dict[str, object | None]:
-    """Convert a SQLAlchemy model to a dict.
-
-    Args:
-        self (DeclarativeMeta): The SQLAlchemy model to convert.
-
-    Returns:
-        dict[str, object | None]: The converted model.
-    """
-
-    fields: dict[str, object | None] = {}
-
-    for field in dir(self):
-        if field.startswith("_") or field in ("as_dict", "metadata", "registry"):
-            continue
-
-        data = getattr(self, field)
-
-        if isinstance(data, (date | datetime)):
-            LOGGER.debug("Dumping %r from model %r", data, self)
-            fields[field] = data.isoformat()
-        else:
-            try:
-                dumps(data)
-            except TypeError:
-                LOGGER.error(
-                    "Unable to dump %s in field %s for model %r", data, field, self
-                )
-                fields[field] = None
-            else:
-                LOGGER.debug("Dumping %r from model %r", data, self)
-                fields[field] = data
-
-    return fields
-
-
-Base.as_dict = as_dict
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=BaseExtra.ENGINE)

@@ -7,6 +7,7 @@ from typing import ClassVar
 
 from pydantic import create_model
 from sqlalchemy import JSON, Column, DateTime, Integer, String
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
@@ -17,14 +18,15 @@ from item_warehouse.src.app.schemas import (
     ItemFieldDefinition,
 )
 
-from .database import Base, engine
+from .database import Base, BaseExtra
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
 
 
-class Warehouse(Base):  # type: ignore[misc,valid-type]
+# pylint: disable=abstract-method
+class Warehouse(Base, BaseExtra):  # type: ignore[misc,valid-type]
     """A Warehouse is just a table: a place where items are stored."""
 
     __tablename__ = "warehouse"
@@ -41,12 +43,27 @@ class Warehouse(Base):  # type: ignore[misc,valid-type]
         name="created_at", type_=DateTime, nullable=False, default=datetime.utcnow
     )
 
+    def drop_warehouse(self, *, no_exist_ok: bool = False) -> None:
+        """Drop the physical table for storing items in."""
+
+        LOGGER.info("Dropping warehouse %r", self.name)
+
+        try:
+            self.item_model.__table__.drop(bind=self.ENGINE)
+        except OperationalError:
+            if no_exist_ok:
+                LOGGER.info(
+                    "Warehouse %r does not exist, so not dropping it.", self.name
+                )
+            else:
+                raise
+
     def intialise_warehouse(self) -> None:
         """Create a new physical table for storing items in."""
 
         LOGGER.info("Creating warehouse %r", self.name)
 
-        self.item_model.__table__.create(bind=engine)
+        self.item_model.__table__.create(bind=self.ENGINE)
 
     @classmethod
     def get_item_model_for_warehouse(
@@ -121,7 +138,7 @@ class Warehouse(Base):  # type: ignore[misc,valid-type]
             )
 
             self._ITEM_MODELS[self.name] = type(  # type: ignore[assignment]
-                item_name_camel_case, (Base,), model_fields
+                item_name_camel_case, (Base, BaseExtra), model_fields
             )
 
         return self._ITEM_MODELS[self.name]

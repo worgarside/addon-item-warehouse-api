@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from enum import StrEnum, auto
 from json import dumps
 from logging import getLogger
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Response, status
 from fastapi.params import Query
@@ -15,7 +15,7 @@ from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app import crud
 from item_warehouse.src.app._dependencies import get_db
-from item_warehouse.src.app.database import Base, SessionLocal, engine
+from item_warehouse.src.app.database import Base, SessionLocal
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
 from item_warehouse.src.app.schemas import (
     ItemResponse,
@@ -29,7 +29,7 @@ LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
 
 
-Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=WarehouseModel.ENGINE)
 
 
 @asynccontextmanager
@@ -193,7 +193,7 @@ def get_item_schemas(
 
 @app.post(
     "/v1/warehouses/{warehouse_name}/items",
-    response_model=ItemResponse,
+    response_model=Any,
     tags=[ApiTag.ITEM],
 )
 def create_item(
@@ -220,7 +220,11 @@ def create_item(
     LOGGER.info("POST\t/v1/warehouses/%s/items", warehouse_name)
     LOGGER.debug(dumps(item))
 
-    return crud.create_item(db, warehouse_name, item)
+    res = crud.create_item(db, warehouse_name, item)
+
+    LOGGER.info("RESPONSE: %r", res)
+
+    return res
 
 
 @app.get(

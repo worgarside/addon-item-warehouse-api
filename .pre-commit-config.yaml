@@ -91,6 +91,7 @@ repos:
           - sqlalchemy-stubs
           - uvicorn
           - wg-utilities
+          - bidict
 
   - repo: local
     hooks:

@@ -1,13 +1,26 @@
 """The schemas - valid data shapes - for the item_warehouse app."""
+from __future__ import annotations
 
-from datetime import datetime
+from collections.abc import Callable
+from datetime import date, datetime
 from enum import Enum
+from json import dumps
+from logging import getLogger
 from re import Pattern
 from re import compile as re_compile
 from typing import Any, ClassVar, Generic, Literal, TypeVar
+from uuid import uuid4
 
+from bidict import MutableBidict, bidict
 from fastapi import HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -20,6 +33,13 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.sql.schema import NULL_UNSPECIFIED  # type: ignore[attr-defined]
+from sqlalchemy.types import UserDefinedType
+from wg_utilities.loggers import add_stream_handler
+
+LOGGER = getLogger(__name__)
+LOGGER.setLevel("DEBUG")
+add_stream_handler(LOGGER)
+
 
 ItemAttributeType = (
     type[Integer]
@@ -52,12 +72,84 @@ ITEM_TYPE_TYPES = tuple(item_type.value for item_type in ItemType)
 
 T = TypeVar("T", bound=ItemAttributeType)
 
+DFT = TypeVar("DFT", bound=object)
+
+DefaultFunctionType = Callable[..., DFT]
+
+
+class DefaultFunction(UserDefinedType[DFT]):
+    """A default function for an ItemFieldDefinition."""
+
+    _FUNCTIONS: MutableBidict[str, DefaultFunctionType[object]] = bidict(
+        {
+            "utcnow": datetime.utcnow,
+            "today": date.today,
+            "uuid4": lambda: str(uuid4()),
+        }
+    )
+
+    def __init__(self, name: str, func: DefaultFunctionType[object]) -> None:
+        """Initialise a default function.
+
+        The class lookup `_FUNCTIONS` is updated with the function if it is not already
+        present.
+        """
+        self.name = name
+
+        if name not in self._FUNCTIONS:
+            self._FUNCTIONS[name] = func
+
+        self.func: DefaultFunctionType[object] = self._FUNCTIONS[name]
+
+    def __call__(self) -> object:
+        """Call the default function."""
+        return self.func()
+
+    def __repr__(self) -> str:
+        """Return a representation of the default function."""
+        return f"<{self.__class__.__name__} func:{self.name}>"
+
+    def __str__(self) -> str:
+        """Return a string representation of the default function."""
+        return self.ref
+
+    @property
+    def python_type(self) -> type[DFT]:
+        """The Python type of the default function.
+
+        Not yet implemented.
+
+        Could be done by inspecting the function signature? Or just calling it and
+        checking the type of the return value...
+        """
+        return NotImplemented
+
+    @property
+    def ref(self) -> str:
+        """The reference to this default function."""
+        return f"func:{self.name}"
+
+    @classmethod
+    def get_by_name(cls, name: str) -> DefaultFunction[DFT] | None:
+        """Get a default function by its name."""
+
+        if not (func := cls._FUNCTIONS.get(name)):
+            return None
+
+        return cls(name, func)
+
+    @classmethod
+    def get_names(cls) -> list[str]:
+        """Get the names of all the default functions."""
+
+        return sorted(cls._FUNCTIONS.keys())
+
 
 class ItemFieldDefinition(BaseModel, Generic[T]):
     """A Item schema definition."""
 
     autoincrement: bool | Literal["auto", "ignore_fk"] = "auto"
-    default: Any = None
+    default: object | DefaultFunction[T] = None
     index: bool | None = None
     key: str | None = None
     nullable: bool | Literal[  # type: ignore[valid-type]
@@ -68,8 +160,18 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
     unique: bool | None = None
 
     model_config: ClassVar[ConfigDict] = {
+        "arbitrary_types_allowed": True,
         "extra": "forbid",
     }
+
+    @field_serializer("default", return_type=object, when_used="json")
+    def json_serialize_default(self, default: object | DefaultFunction[T]) -> object:
+        """Serialize the Item default."""
+
+        if isinstance(default, DefaultFunction):
+            return default.ref
+
+        return default
 
     @field_serializer("type", return_type=str, when_used="json")
     def serialize_type(self, typ: T) -> str:
@@ -77,31 +179,45 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
 
         return typ.__name__.lower()
 
-    @field_validator("type", mode="before")
-    def validate_type(
-        cls,  # noqa: N805
-        typ: ItemAttributeType | str,
-    ) -> ItemAttributeType:
-        """Validate the ItemFieldDefinition type."""
+    @model_validator(mode="before")
+    def _validate_model(cls, data: dict[str, Any]) -> dict[str, Any]:  # noqa: N805
+        """Validate the ItemFieldDefinition model."""
 
-        if isinstance(typ, str):
+        if isinstance(typ := data["type"], str):
             try:
-                return ItemType[typ.lower()].value
+                LOGGER.debug("Converting string %r to ItemType", typ)
+                data["type"] = ItemType[typ.lower()].value
             except KeyError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"type '{typ}' must be a string matching one"
+                    detail=f"type {typ!r} must be a string matching one"
                     f" of `{'`, `'.join(ItemType.__members__.keys())}`.",
                 ) from exc
 
-        if typ not in ITEM_TYPE_TYPES:
+        if data["type"] not in ITEM_TYPE_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"type '{typ}' must be a string matching one"
+                detail=f"type {typ!r} must be a string matching one"
                 f" of `{'`, `'.join(ItemType.__members__.keys())}`.",
             )
 
-        return typ
+        if (default := data.get("default")) is not None and isinstance(default, str):
+            match default.split(":", 1):
+                case "func", func_name:
+                    try:
+                        data["default"] = DefaultFunction.get_by_name(func_name)
+                    except KeyError as exc:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"default function {func_name!r} must be one"
+                            f" of `{'`, `'.join(DefaultFunction.get_names())}`.",
+                        ) from exc
+                case _:
+                    pass
+
+        LOGGER.debug("Validated ItemFieldDefinition: %r", data)
+
+        return data
 
     def model_dump_column(self, field_name: str | None = None) -> Column[T]:
         """Dump the ItemFieldDefinition as a SQLAlchemy Column."""
@@ -112,6 +228,11 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
             params["name"] = field_name
 
         params["type_"] = params.pop("type")
+
+        LOGGER.debug(
+            "Dumping ItemFieldDefinition as Column: %s",
+            dumps(params, sort_keys=True, default=repr),
+        )
 
         return Column(**params)
 
@@ -154,6 +275,7 @@ class WarehouseCreate(WarehouseBase):
                         "age": {
                             "nullable": True,
                             "type": "integer",
+                            "default": -1,
                         },
                         "salary": {
                             "nullable": False,
@@ -170,6 +292,12 @@ class WarehouseCreate(WarehouseBase):
                         "last_login": {
                             "nullable": True,
                             "type": "datetime",
+                            "default": "func:utcnow",
+                        },
+                        "password": {
+                            "nullable": False,
+                            "type": "string",
+                            "default": "func:uuid4",
                         },
                         "employee_number": {
                             "unique": True,
