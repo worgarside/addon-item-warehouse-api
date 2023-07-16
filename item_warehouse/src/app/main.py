@@ -8,7 +8,7 @@ from json import dumps
 from logging import getLogger
 from typing import Annotated, Any
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Response, status
+from fastapi import Body, Depends, FastAPI, HTTPException, status
 from fastapi.params import Query
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
@@ -112,8 +112,8 @@ def create_warehouse(
 
 @app.delete(
     "/v1/warehouses/{warehouse_name}",
-    # status_code=status.HTTP_204_NO_CONTENT,   # noqa: ERA001
-    response_class=Response,
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
     tags=[ApiTag.WAREHOUSE],
 )
 def delete_warehouse(
@@ -132,7 +132,9 @@ def get_warehouse(
     """Get a warehouse."""
 
     if (db_warehouse := crud.get_warehouse(db, warehouse_name)) is None:
-        raise HTTPException(status_code=404, detail="Warehouse not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Warehouse not found"
+        )
 
     return db_warehouse
 
@@ -282,12 +284,38 @@ def get_item(
     if not (
         item := crud.get_item(db, warehouse_name, item_pk, field_names=field_names)
     ):
+        warehouse = get_warehouse(warehouse_name, db=db)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Item not found. Note: PK field is `???`",
+            detail=f"Item not found. Note: PK field is `{warehouse.item_model.primary_key_field}`",
         )
 
     return item
+
+
+@app.delete(
+    "/v1/warehouses/{warehouse_name}/items/{item_pk}",
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[ApiTag.ITEM],
+)
+def delete_item(
+    warehouse_name: str,
+    item_pk: str,
+    db: Session = Depends(get_db),  # noqa: B008
+) -> None:
+    """Delete an item in a warehouse."""
+
+    LOGGER.info("DELETE\t/v1/warehouses/%s/items/%s", warehouse_name, item_pk)
+
+    if not crud.get_item(db, warehouse_name, item_pk):
+        warehouse = get_warehouse(warehouse_name, db=db)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Item not found. Note: PK field is `{warehouse.item_model.primary_key_field}`",
+        )
+
+    crud.delete_item(db, warehouse_name, item_pk)
 
 
 if __name__ == "__main__":

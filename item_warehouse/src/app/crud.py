@@ -153,6 +153,18 @@ def create_item(
     )  # type: ignore[return-value]
 
 
+def delete_item(db: Session, /, warehouse_name: str, item_pk: str) -> None:
+    """Delete an item from a warehouse."""
+
+    if (warehouse := get_warehouse(db, warehouse_name)) is None:
+        raise WarehouseNotFoundError(warehouse_name)
+
+    db.query(warehouse.item_model).filter(
+        getattr(warehouse.item_model, warehouse.item_model.primary_key_field) == item_pk
+    ).delete()
+    db.commit()
+
+
 def get_item(
     db: Session,
     /,

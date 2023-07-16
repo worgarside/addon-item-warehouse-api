@@ -39,6 +39,25 @@ class _BaseExtra:
             " base class for a model. Use `Base` instead."
         )
 
+    @classmethod
+    def _custom_json_serializer(cls, *args: Any, **kwargs: Any) -> str:
+        return dumps(*args, default=cls._serialize, **kwargs)
+
+    @classmethod
+    def _serialize(cls, obj: Any) -> Any:
+        if isinstance(obj, DefaultFunction):
+            return obj.ref
+
+        if obj in ITEM_TYPE_TYPES:
+            return obj.__name__.lower()
+
+        if isinstance(obj, (date | datetime)):
+            return obj.isoformat()
+
+        dumps(obj)
+
+        return obj
+
     def as_dict(
         self, include: list[str] | None = None, exclude: list[str] | None = None
     ) -> dict[str, object | None]:
@@ -74,25 +93,6 @@ class _BaseExtra:
             fields[field] = self._serialize(getattr(self, field))
 
         return fields
-
-    @classmethod
-    def _custom_json_serializer(cls, *args: Any, **kwargs: Any) -> str:
-        return dumps(*args, default=cls._serialize, **kwargs)
-
-    @classmethod
-    def _serialize(cls, obj: Any) -> Any:
-        if isinstance(obj, DefaultFunction):
-            return obj.ref
-
-        if obj in ITEM_TYPE_TYPES:
-            return obj.__name__.lower()
-
-        if isinstance(obj, (date | datetime)):
-            return obj.isoformat()
-
-        dumps(obj)
-
-        return obj
 
 
 _BaseExtra.ENGINE = create_engine(

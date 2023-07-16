@@ -95,8 +95,6 @@ class Warehouse(Base):  # type: ignore[misc]
                 ),
             }
 
-            user_primary_key = False
-
             for field_name, _field_def in self.item_schema.items():  # type: ignore[union-attr]
                 if field_name in model_fields:
                     raise DuplicateFieldError(field_name)
@@ -110,7 +108,7 @@ class Warehouse(Base):  # type: ignore[misc]
                 )
 
                 if field_definition.primary_key:
-                    if user_primary_key:
+                    if "primary_key_field" in model_fields:
                         raise ValueError(  # noqa: TRY003
                             f"Multiple primary keys defined for warehouse {self.name}"
                         )
@@ -120,15 +118,16 @@ class Warehouse(Base):  # type: ignore[misc]
                         field_name,
                         self.name,
                     )
-                    user_primary_key = True
+                    model_fields["primary_key_field"] = field_name
 
-            if not user_primary_key:
+            if "primary_key_field" not in model_fields:
                 model_fields["id"] = Column(
                     "id",
                     Integer,  # type: ignore[arg-type]
                     primary_key=True,
                     index=True,
                 )
+                model_fields["primary_key_field"] = "id"
 
             model_fields["__tablename__"] = self.name
 
