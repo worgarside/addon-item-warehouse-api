@@ -153,6 +153,49 @@ def create_item(
     )  # type: ignore[return-value]
 
 
+def get_item(
+    db: Session,
+    /,
+    warehouse_name: str,
+    item_pk: str,
+    field_names: list[str] | None = None,
+) -> ItemResponse | None:
+    """Get an item from a warehouse.
+
+    Args:
+        db (Session): The database session to use.
+        warehouse_name (str): The name of the warehouse to get the item from.
+        item_pk (str): The primary key of the item to get.
+        field_names (list[str], optional): The names of the fields to return. Defaults
+            to None.
+
+    Returns:
+        ItemResponse | None: The item, or None if it doesn't exist.
+    """
+
+    if (warehouse := get_warehouse(db, warehouse_name)) is None:
+        raise WarehouseNotFoundError(warehouse_name)
+
+    if field_names and any(
+        field_name not in warehouse.item_model.__table__.columns.keys()
+        for field_name in field_names
+    ):
+        unknown_fields = [
+            field_name
+            for field_name in field_names
+            if field_name not in warehouse.item_model.__table__.columns.keys()
+        ]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid field(s): '{', '.join(unknown_fields)}'",
+        )
+
+    if (item := db.query(warehouse.item_model).get(item_pk)) is None:
+        return None
+
+    return item.as_dict(include=field_names)
+
+
 def get_items(
     db: Session,
     /,
@@ -179,6 +222,7 @@ def get_items(
 
     Raises:
         WarehouseNotFoundError: Raised if the warehouse does not exist.
+        HTTPException: Raised if an invalid field name is provided.
     """
 
     if (warehouse := get_warehouse(db, warehouse_name)) is None:

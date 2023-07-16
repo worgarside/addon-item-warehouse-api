@@ -5,9 +5,9 @@ from json import dumps
 from logging import getLogger
 from typing import Any, ClassVar
 
+from sqlalchemy import Table
 from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker  # type: ignore[attr-defined]
-from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app.schemas import ITEM_TYPE_TYPES, DefaultFunction
@@ -26,22 +26,30 @@ add_stream_handler(LOGGER)
 SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
 
 
-class BaseExtra:
+class _BaseExtra:
     """Extra functionality for SQLAlchemy models."""
+
+    __table__: Table
 
     ENGINE: ClassVar[Engine]
 
-    def __init__(self, *_: Any, **__: Any) -> None:  # noqa: D107
+    def __init__(self, *_: Any, **__: Any) -> None:
         raise NotImplementedError(  # noqa: TRY003
-            "Class BaseExtra should not be instantiated by itself or as the primary"
-            f" base class for a model. Use {Base.__name__} instead."
+            "Class _BaseExtra should not be instantiated by itself or as the primary"
+            " base class for a model. Use `Base` instead."
         )
 
-    def as_dict(self) -> dict[str, object | None]:
+    def as_dict(
+        self, include: list[str] | None = None, exclude: list[str] | None = None
+    ) -> dict[str, object | None]:
         """Convert a SQLAlchemy model to a dict.
 
         Args:
             self (DeclarativeMeta): The SQLAlchemy model to convert.
+            include (list[str] | None, optional): The fields to include. Defaults to
+                None (all).
+            exclude (list[str] | None, optional): The fields to exclude. Defaults to
+                None.
 
         Raises:
             TypeError: If this instance is not a SQLAlchemy model.
@@ -49,6 +57,8 @@ class BaseExtra:
         Returns:
             dict[str, object | None]: The converted model.
         """
+        include = sorted(include or self.__table__.columns.keys())
+        exclude = exclude or []
 
         if not isinstance(self, Base):
             raise TypeError(  # noqa: TRY003
@@ -57,13 +67,8 @@ class BaseExtra:
 
         fields: dict[str, object | None] = {}
 
-        for field in dir(self):
-            if field.startswith("_") or field in (
-                "as_dict",
-                "metadata",
-                "registry",
-                "ENGINE",
-            ):
+        for field in include:
+            if field in exclude:
                 continue
 
             fields[field] = self._serialize(getattr(self, field))
@@ -90,13 +95,13 @@ class BaseExtra:
         return obj
 
 
-BaseExtra.ENGINE = create_engine(
+_BaseExtra.ENGINE = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    json_serializer=BaseExtra._custom_json_serializer,  # pylint: disable=protected-access
+    json_serializer=_BaseExtra._custom_json_serializer,  # pylint: disable=protected-access
     connect_args={"check_same_thread": False},
 )
 
-Base: DeclarativeMeta = declarative_base()
+Base = declarative_base(cls=_BaseExtra)
 
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=BaseExtra.ENGINE)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_BaseExtra.ENGINE)

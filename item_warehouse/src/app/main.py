@@ -256,6 +256,40 @@ def get_items(
     )
 
 
+@app.get(
+    "/v1/warehouses/{warehouse_name}/items/{item_pk}",
+    response_model=Any,
+    tags=[ApiTag.ITEM],
+)
+def get_item(
+    warehouse_name: str,
+    item_pk: str,
+    fields: str
+    | None = Query(  # type: ignore[assignment] # noqa: B008
+        default=None,
+        example="age,salary,name,alive",
+        description="A comma-separated list of fields to return.",
+        pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
+    ),
+    db: Session = Depends(get_db),  # noqa: B008
+) -> ItemResponse:
+    """Get an item in a warehouse."""
+
+    LOGGER.info("GET\t/v1/warehouses/%s/items/%s", warehouse_name, item_pk)
+
+    field_names = fields.split(",") if fields else None
+
+    if not (
+        item := crud.get_item(db, warehouse_name, item_pk, field_names=field_names)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item not found. Note: PK field is `???`",
+        )
+
+    return item
+
+
 if __name__ == "__main__":
     import uvicorn
 

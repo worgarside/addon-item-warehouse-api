@@ -18,15 +18,14 @@ from item_warehouse.src.app.schemas import (
     ItemFieldDefinition,
 )
 
-from .database import Base, BaseExtra
+from .database import Base
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
 
 
-# pylint: disable=abstract-method
-class Warehouse(Base, BaseExtra):  # type: ignore[misc,valid-type]
+class Warehouse(Base):  # type: ignore[misc]
     """A Warehouse is just a table: a place where items are stored."""
 
     __tablename__ = "warehouse"
@@ -111,6 +110,11 @@ class Warehouse(Base, BaseExtra):  # type: ignore[misc,valid-type]
                 )
 
                 if field_definition.primary_key:
+                    if user_primary_key:
+                        raise ValueError(  # noqa: TRY003
+                            f"Multiple primary keys defined for warehouse {self.name}"
+                        )
+
                     LOGGER.info(
                         "User-defined primary key %r found in warehouse %r",
                         field_name,
@@ -138,7 +142,7 @@ class Warehouse(Base, BaseExtra):  # type: ignore[misc,valid-type]
             )
 
             self._ITEM_MODELS[self.name] = type(  # type: ignore[assignment]
-                item_name_camel_case, (Base, BaseExtra), model_fields
+                item_name_camel_case, (Base,), model_fields
             )
 
         return self._ITEM_MODELS[self.name]
