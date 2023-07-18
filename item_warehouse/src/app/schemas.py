@@ -343,4 +343,14 @@ class ItemResponse(ItemBase):
     }
 
 
+class ItemUpdateBase(BaseModel):
+    """Base model for item update requests."""
+
+    model_config: ClassVar[ConfigDict] = {
+        "extra": "allow",
+    }
+
+
 ItemSchema = dict[str, ItemFieldDefinition[ItemAttributeType]]
+
+GeneralItemModelType = dict[str, object | None]

@@ -15,9 +15,14 @@ from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app import crud
 from item_warehouse.src.app._dependencies import get_db
+from item_warehouse.src.app._exceptions import (
+    ItemSchemaExistsError,
+    WarehouseExistsError,
+)
 from item_warehouse.src.app.database import Base, SessionLocal
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
 from item_warehouse.src.app.schemas import (
+    GeneralItemModelType,
     ItemResponse,
     ItemSchema,
     Warehouse,
@@ -83,22 +88,17 @@ def create_warehouse(
 
     if warehouse.name == "warehouse":
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Warehouse name 'warehouse' is reserved.",
         )
 
-    if (db_warehouse := crud.get_warehouse(db, warehouse.name)) is not None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Warehouse {warehouse.name!r} already exists. Created"
-            f" at {db_warehouse.created_at}",
-        )
+    if (
+        db_warehouse := crud.get_warehouse(db, warehouse.name, no_exist_ok=True)
+    ) is not None:
+        raise WarehouseExistsError(db_warehouse)
 
-    if crud.get_item_schema(db, warehouse.item_name) is not None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Item {warehouse.item_name!r} already exists.",
-        )
+    if crud.get_item_schema(db, warehouse.item_name, no_exist_ok=True) is not None:
+        raise ItemSchemaExistsError(warehouse.item_name)
 
     try:
         return crud.create_warehouse(db, warehouse)
@@ -117,7 +117,7 @@ def create_warehouse(
     tags=[ApiTag.WAREHOUSE],
 )
 def delete_warehouse(
-    warehouse_name: int, db: Session = Depends(get_db)  # noqa: B008
+    warehouse_name: str, db: Session = Depends(get_db)  # noqa: B008
 ) -> None:
     """Delete a warehouse."""
     crud.delete_warehouse(db, warehouse_name)
@@ -131,12 +131,7 @@ def get_warehouse(
 ) -> WarehouseModel:
     """Get a warehouse."""
 
-    if (db_warehouse := crud.get_warehouse(db, warehouse_name)) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Warehouse not found"
-        )
-
-    return db_warehouse
+    return crud.get_warehouse(db, warehouse_name)
 
 
 @app.get("/v1/warehouses", response_model=list[Warehouse], tags=[ApiTag.WAREHOUSE])
@@ -150,11 +145,12 @@ def get_warehouses(
 
 @app.put("/v1/warehouses/{warehouse_name}", tags=[ApiTag.WAREHOUSE])
 def update_warehouse(
-    warehouse_name: int,
+    warehouse_name: str,
+    warehouse: WarehouseCreate,
+    db: Session = Depends(get_db),  # noqa: B008
 ) -> dict[str, str]:
     """Update a warehouse in a warehouse."""
-    _ = warehouse_name
-    return {"message": "warehouse has been updated!"}
+    return crud.update_warehouse(db, warehouse_name, warehouse)
 
 
 # Item Schema Endpoints
@@ -169,13 +165,7 @@ def get_item_schema(
     item_name: str, db: Session = Depends(get_db)  # noqa: B008
 ) -> ItemSchema:
     """Get an item's schema."""
-    if (item_model := crud.get_item_schema(db, item_name)) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Item {item_name!r} not found",
-        )
-
-    return item_model
+    return crud.get_item_schema(db, item_name)
 
 
 @app.get(
@@ -229,6 +219,59 @@ def create_item(
     return res
 
 
+@app.delete(
+    "/v1/warehouses/{warehouse_name}/items/{item_pk}",
+    response_model=None,
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=[ApiTag.ITEM],
+)
+def delete_item(
+    warehouse_name: str,
+    item_pk: str,
+    db: Session = Depends(get_db),  # noqa: B008
+) -> None:
+    """Delete an item in a warehouse."""
+
+    LOGGER.info("DELETE\t/v1/warehouses/%s/items/%s", warehouse_name, item_pk)
+
+    crud.delete_item(db, warehouse_name, item_pk)
+
+
+@app.get(
+    "/v1/warehouses/{warehouse_name}/items/{item_pk}",
+    response_model=ItemResponse,
+    tags=[ApiTag.ITEM],
+)
+def get_item(
+    warehouse_name: str,
+    item_pk: str,
+    fields: str
+    | None = Query(  # type: ignore[assignment] # noqa: B008
+        default=None,
+        example="age,salary,name,alive",
+        description="A comma-separated list of fields to return.",
+        pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
+    ),
+    db: Session = Depends(get_db),  # noqa: B008
+) -> GeneralItemModelType:
+    """Get an item in a warehouse."""
+
+    LOGGER.info("GET\t/v1/warehouses/%s/items/%s", warehouse_name, item_pk)
+
+    field_names = fields.split(",") if fields else None
+
+    if not (
+        item := crud.get_item(db, warehouse_name, item_pk, field_names=field_names)
+    ):
+        warehouse = get_warehouse(warehouse_name, db=db)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Item not found. Note: PK field is `{warehouse.item_model.primary_key_field}`",
+        )
+
+    return item
+
+
 @app.get(
     "/v1/warehouses/{warehouse_name}/items",
     response_model=list[ItemResponse],
@@ -258,55 +301,32 @@ def get_items(
     )
 
 
-@app.get(
+@app.put(
     "/v1/warehouses/{warehouse_name}/items/{item_pk}",
-    response_model=Any,
+    response_model=ItemResponse,
     tags=[ApiTag.ITEM],
 )
-def get_item(
+def update_item(
     warehouse_name: str,
     item_pk: str,
-    fields: str
-    | None = Query(  # type: ignore[assignment] # noqa: B008
-        default=None,
-        example="age,salary,name,alive",
-        description="A comma-separated list of fields to return.",
-        pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
-    ),
+    item: Annotated[
+        dict[str, object],
+        Body(
+            examples=[
+                {
+                    "name": "Joseph Bloggs",
+                    "salary": 0,
+                    "alive": False,
+                },
+            ]
+        ),
+    ],
     db: Session = Depends(get_db),  # noqa: B008
-) -> ItemResponse:
-    """Get an item in a warehouse."""
+) -> GeneralItemModelType:
+    """Update an item in a warehouse."""
 
-    LOGGER.info("GET\t/v1/warehouses/%s/items/%s", warehouse_name, item_pk)
-
-    field_names = fields.split(",") if fields else None
-
-    if not (
-        item := crud.get_item(db, warehouse_name, item_pk, field_names=field_names)
-    ):
-        warehouse = get_warehouse(warehouse_name, db=db)
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Item not found. Note: PK field is `{warehouse.item_model.primary_key_field}`",
-        )
-
-    return item
-
-
-@app.delete(
-    "/v1/warehouses/{warehouse_name}/items/{item_pk}",
-    response_model=None,
-    status_code=status.HTTP_204_NO_CONTENT,
-    tags=[ApiTag.ITEM],
-)
-def delete_item(
-    warehouse_name: str,
-    item_pk: str,
-    db: Session = Depends(get_db),  # noqa: B008
-) -> None:
-    """Delete an item in a warehouse."""
-
-    LOGGER.info("DELETE\t/v1/warehouses/%s/items/%s", warehouse_name, item_pk)
+    LOGGER.info("PUT\t/v1/warehouses/%s/items/%s", warehouse_name, item_pk)
+    LOGGER.debug(dumps(item))
 
     if not crud.get_item(db, warehouse_name, item_pk):
         warehouse = get_warehouse(warehouse_name, db=db)
@@ -315,7 +335,9 @@ def delete_item(
             detail=f"Item not found. Note: PK field is `{warehouse.item_model.primary_key_field}`",
         )
 
-    crud.delete_item(db, warehouse_name, item_pk)
+    return crud.update_item(
+        db, warehouse_name=warehouse_name, item_pk=item_pk, item_update=item
+    )
 
 
 if __name__ == "__main__":

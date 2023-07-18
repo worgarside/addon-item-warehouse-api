@@ -1,14 +1,23 @@
 """CRUD operations for the warehouse app."""
 
+from json import dumps
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, overload
 
-from fastapi import HTTPException, status
 from pydantic import ValidationError
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
 
+from item_warehouse.src.app._exceptions import (
+    HttpValidationError,
+    InvalidFieldsError,
+    ItemNotFoundError,
+    ItemSchemaNotFoundError,
+    UniqueConstraintError,
+    WarehouseNotFoundError,
+)
+from item_warehouse.src.app.database import GeneralItemModelType
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
 from item_warehouse.src.app.schemas import (
     ItemBase,
@@ -17,10 +26,9 @@ from item_warehouse.src.app.schemas import (
     WarehouseCreate,
 )
 
-from ._exceptions import HttpValidationError, WarehouseNotFoundError
-
 if TYPE_CHECKING:
     from pydantic.main import IncEx
+
 else:
     IncEx = set[str]
 
@@ -52,15 +60,41 @@ def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> WarehouseMod
     return db_warehouse
 
 
-def delete_warehouse(db: Session, /, warehouse_name: int) -> None:
+def delete_warehouse(db: Session, /, warehouse_name: str) -> None:
     """Delete a warehouse."""
     db.query(WarehouseModel).filter(WarehouseModel.id == warehouse_name).delete()
     db.commit()
 
 
-def get_warehouse(db: Session, /, name: str) -> WarehouseModel | None:
+@overload
+def get_warehouse(
+    db: Session, /, name: str, *, no_exist_ok: Literal[False] = False
+) -> WarehouseModel:
+    ...
+
+
+@overload
+def get_warehouse(
+    db: Session, /, name: str, *, no_exist_ok: Literal[True] = True
+) -> WarehouseModel | None:
+    ...
+
+
+def get_warehouse(
+    db: Session, /, name: str, *, no_exist_ok: bool = False
+) -> WarehouseModel | None:
     """Get a warehouse by its name."""
-    return db.query(WarehouseModel).filter(WarehouseModel.name == name).first()
+
+    if (
+        warehouse := db.query(WarehouseModel)
+        .filter(WarehouseModel.name == name)
+        .first()
+    ) is None:
+        if no_exist_ok:
+            return None
+        raise WarehouseNotFoundError(name)
+
+    return warehouse
 
 
 def get_warehouses(
@@ -98,10 +132,41 @@ def get_warehouses(
         raise
 
 
+def update_warehouse(
+    db: Session,
+    /,
+    warehouse_name: str,
+    warehouse: WarehouseCreate,
+) -> WarehouseModel:
+    """Update a warehouse."""
+
+    _ = db, warehouse_name, warehouse
+
+    raise NotImplementedError(  # noqa: TRY003
+        "Updating warehouses is not yet implemented."
+    )
+
+
 # Item Schema Operations
 
 
-def get_item_schema(db: Session, /, item_name: str) -> ItemSchema | None:
+@overload
+def get_item_schema(
+    db: Session, /, item_name: str, *, no_exist_ok: Literal[False] = False
+) -> ItemSchema:
+    ...
+
+
+@overload
+def get_item_schema(
+    db: Session, /, item_name: str, *, no_exist_ok: Literal[True] = True
+) -> ItemSchema | None:
+    ...
+
+
+def get_item_schema(
+    db: Session, /, item_name: str, *, no_exist_ok: bool = False
+) -> ItemSchema | None:
     """Get an item's schema."""
 
     if (
@@ -109,9 +174,12 @@ def get_item_schema(db: Session, /, item_name: str) -> ItemSchema | None:
         .filter(WarehouseModel.item_name == item_name)
         .first()
     ) is None:
-        return None
+        if no_exist_ok:
+            return None
 
-    return results[0]  # type: ignore[return-value]
+        raise ItemSchemaNotFoundError(item_name)
+
+    return results[0]
 
 
 def get_item_schemas(db: Session, /) -> dict[str, ItemSchema]:
@@ -128,9 +196,6 @@ def create_item(
     """Create an item in a warehouse."""
 
     warehouse = get_warehouse(db, warehouse_name)
-
-    if warehouse is None:
-        raise WarehouseNotFoundError(warehouse_name)
 
     try:
         LOGGER.debug("Validating item into schema: %r ", item)
@@ -156,13 +221,38 @@ def create_item(
 def delete_item(db: Session, /, warehouse_name: str, item_pk: str) -> None:
     """Delete an item from a warehouse."""
 
-    if (warehouse := get_warehouse(db, warehouse_name)) is None:
-        raise WarehouseNotFoundError(warehouse_name)
+    warehouse = get_warehouse(db, warehouse_name)
 
-    db.query(warehouse.item_model).filter(
-        getattr(warehouse.item_model, warehouse.item_model.primary_key_field) == item_pk
-    ).delete()
+    _ = get_item(db, warehouse_name, item_pk)
+
+    db.query(warehouse.item_model).filter(warehouse.pk == item_pk).delete()
     db.commit()
+
+
+@overload
+def get_item(
+    db: Session,
+    /,
+    warehouse_name: str,
+    item_pk: str,
+    field_names: list[str] | None = None,
+    *,
+    no_exist_ok: Literal[False] = False,
+) -> GeneralItemModelType:
+    ...
+
+
+@overload
+def get_item(
+    db: Session,
+    /,
+    warehouse_name: str,
+    item_pk: str,
+    field_names: list[str] | None = None,
+    *,
+    no_exist_ok: Literal[True] = True,
+) -> GeneralItemModelType | None:
+    ...
 
 
 def get_item(
@@ -171,7 +261,9 @@ def get_item(
     warehouse_name: str,
     item_pk: str,
     field_names: list[str] | None = None,
-) -> ItemResponse | None:
+    *,
+    no_exist_ok: bool = False,
+) -> GeneralItemModelType | None:
     """Get an item from a warehouse.
 
     Args:
@@ -180,13 +272,14 @@ def get_item(
         item_pk (str): The primary key of the item to get.
         field_names (list[str], optional): The names of the fields to return. Defaults
             to None.
+        no_exist_ok (bool, optional): Whether to suppress the error thrown if the item
+            doesn't exist. Defaults to False.
 
     Returns:
         ItemResponse | None: The item, or None if it doesn't exist.
     """
 
-    if (warehouse := get_warehouse(db, warehouse_name)) is None:
-        raise WarehouseNotFoundError(warehouse_name)
+    warehouse = get_warehouse(db, warehouse_name)
 
     if field_names and any(
         field_name not in warehouse.item_model.__table__.columns.keys()
@@ -197,13 +290,13 @@ def get_item(
             for field_name in field_names
             if field_name not in warehouse.item_model.__table__.columns.keys()
         ]
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid field(s): '{', '.join(unknown_fields)}'",
-        )
+        raise InvalidFieldsError(unknown_fields)
 
     if (item := db.query(warehouse.item_model).get(item_pk)) is None:
-        return None
+        if no_exist_ok:
+            return None
+
+        raise ItemNotFoundError(item_pk, warehouse_name)
 
     return item.as_dict(include=field_names)
 
@@ -233,12 +326,10 @@ def get_items(
         list[dict[str, object]]: A list of items in the warehouse.
 
     Raises:
-        WarehouseNotFoundError: Raised if the warehouse does not exist.
-        HTTPException: Raised if an invalid field name is provided.
+        _HTTPException: Raised if an invalid field name is provided.
     """
 
-    if (warehouse := get_warehouse(db, warehouse_name)) is None:
-        raise WarehouseNotFoundError(warehouse_name)
+    warehouse = get_warehouse(db, warehouse_name)
 
     if not field_names:
         return [  # type: ignore[var-annotated]
@@ -253,11 +344,44 @@ def get_items(
             getattr(warehouse.item_model, field_name) for field_name in field_names
         )
     except AttributeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid field: {exc}",
-        ) from exc
+        raise InvalidFieldsError(exc.name) from exc
 
     results = db.query(*fields).offset(offset).limit(limit).all()
 
     return [dict(zip(field_names, row, strict=True)) for row in results]  # type: ignore[misc]
+
+
+def update_item(
+    db: Session, /, *, warehouse_name: str, item_pk: str, item_update: dict[str, object]
+) -> GeneralItemModelType:
+    """Update an item in a warehouse."""
+
+    warehouse = get_warehouse(db, warehouse_name)
+
+    current_item_dict = get_item(db, warehouse_name, item_pk)
+
+    new_item_dict = current_item_dict | item_update
+
+    LOGGER.debug(
+        "Parsed item update into new item: %s",
+        dumps(new_item_dict, indent=2, sort_keys=True),
+    )
+
+    try:
+        warehouse.item_schema_class.model_validate(new_item_dict)
+    except ValidationError as exc:
+        raise HttpValidationError(exc) from exc
+
+    try:
+        db.query(warehouse.item_model).filter(warehouse.pk == item_pk).update(
+            item_update
+        )
+    except IntegrityError as exc:
+        if "unique constraint failed" in str(exc).lower():
+            raise UniqueConstraintError(
+                warehouse.pk_name, item_update[warehouse.pk_name]
+            ) from exc
+        raise
+
+    db.commit()
+    return get_item(db, warehouse_name, item_pk)

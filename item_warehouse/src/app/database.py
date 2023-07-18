@@ -10,7 +10,11 @@ from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker  # type: ignore[attr-defined]
 from wg_utilities.loggers import add_stream_handler
 
-from item_warehouse.src.app.schemas import ITEM_TYPE_TYPES, DefaultFunction
+from item_warehouse.src.app.schemas import (
+    ITEM_TYPE_TYPES,
+    DefaultFunction,
+    GeneralItemModelType,
+)
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
@@ -60,7 +64,7 @@ class _BaseExtra:
 
     def as_dict(
         self, include: list[str] | None = None, exclude: list[str] | None = None
-    ) -> dict[str, object | None]:
+    ) -> GeneralItemModelType:
         """Convert a SQLAlchemy model to a dict.
 
         Args:
@@ -74,7 +78,7 @@ class _BaseExtra:
             TypeError: If this instance is not a SQLAlchemy model.
 
         Returns:
-            dict[str, object | None]: The converted model.
+            GeneralItemModelType: The converted model.
         """
         include = sorted(include or self.__table__.columns.keys())
         exclude = exclude or []
@@ -84,7 +88,7 @@ class _BaseExtra:
                 f"Expected a SQLAlchemy model, got {self.__class__!r}."
             )
 
-        fields: dict[str, object | None] = {}
+        fields: GeneralItemModelType = {}
 
         for field in include:
             if field in exclude:
@@ -105,3 +109,5 @@ Base = declarative_base(cls=_BaseExtra)
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_BaseExtra.ENGINE)
+
+__all__ = ["Base", "SessionLocal", "GeneralItemModelType"]

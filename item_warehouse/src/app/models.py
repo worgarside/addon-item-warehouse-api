@@ -3,11 +3,12 @@
 from datetime import datetime
 from json import dumps
 from logging import getLogger
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from pydantic import create_model
 from sqlalchemy import JSON, Column, DateTime, Integer, String
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
@@ -16,6 +17,7 @@ from item_warehouse.src.app.schemas import (
     ItemAttributeType,
     ItemBase,
     ItemFieldDefinition,
+    ItemUpdateBase,
 )
 
 from .database import Base
@@ -32,15 +34,35 @@ class Warehouse(Base):  # type: ignore[misc]
 
     _ITEM_MODELS: ClassVar[dict[str, DeclarativeMeta]] = {}
     _ITEM_SCHEMAS: ClassVar[dict[str, ItemBase]] = {}
+    _ITEM_UPDATE_SCHEMAS: ClassVar[dict[str, ItemUpdateBase]] = {}
 
-    name = Column(
+    name: Column[str] = Column(
         name="name", type_=String(255), primary_key=True, unique=True, index=True
     )
-    item_name = Column(name="item_name", type_=String(255), unique=True, nullable=False)
-    item_schema = Column(name="item_schema", type_=JSON, nullable=False)
-    created_at = Column(
+    item_name: Column[str] = Column(
+        name="item_name", type_=String(255), unique=True, nullable=False
+    )
+    item_schema: Column[dict[str, ItemFieldDefinition[ItemAttributeType]]] = Column(
+        name="item_schema", type_=JSON, nullable=False  # type: ignore[arg-type]
+    )
+    created_at: Column[datetime] = Column(
         name="created_at", type_=DateTime, nullable=False, default=datetime.utcnow
     )
+
+    @classmethod
+    def get_item_model_for_warehouse(
+        cls, warehouse_name: str
+    ) -> DeclarativeMeta | None:
+        """Get the SQLAlchemy model for the given warehouse.
+
+        Args:
+            warehouse_name (str): The name of the warehouse to get the model for.
+
+        Returns:
+            DeclarativeMeta | None: The SQLAlchemy item model for the given warehouse.
+        """
+
+        return cls._ITEM_MODELS.get(warehouse_name)
 
     def drop_warehouse(self, *, no_exist_ok: bool = False) -> None:
         """Drop the physical table for storing items in."""
@@ -64,21 +86,6 @@ class Warehouse(Base):  # type: ignore[misc]
 
         self.item_model.__table__.create(bind=self.ENGINE)
 
-    @classmethod
-    def get_item_model_for_warehouse(
-        cls, warehouse_name: str
-    ) -> DeclarativeMeta | None:
-        """Get the SQLAlchemy model for the given warehouse.
-
-        Args:
-            warehouse_name (str): The name of the warehouse to get the model for.
-
-        Returns:
-            DeclarativeMeta | None: The SQLAlchemy item model for the given warehouse.
-        """
-
-        return cls._ITEM_MODELS.get(warehouse_name)
-
     @property
     def item_model(self) -> DeclarativeMeta:
         """Get the SQLAlchemy model for this warehouse's items."""
@@ -95,7 +102,7 @@ class Warehouse(Base):  # type: ignore[misc]
                 ),
             }
 
-            for field_name, _field_def in self.item_schema.items():  # type: ignore[union-attr]
+            for field_name, _field_def in self.item_schema.items():
                 if field_name in model_fields:
                     raise DuplicateFieldError(field_name)
 
@@ -158,7 +165,7 @@ class Warehouse(Base):  # type: ignore[misc]
                 for (
                     field_name,
                     field_definition,
-                ) in self.item_schema.items()  # type: ignore[union-attr]
+                ) in self.item_schema.items()
             }
 
             pydantic_schema = {}
@@ -186,3 +193,15 @@ class Warehouse(Base):  # type: ignore[misc]
             self._ITEM_SCHEMAS[self.name] = schema
 
         return self._ITEM_SCHEMAS[self.name]
+
+    @property
+    def pk(self) -> InstrumentedAttribute:
+        """Get primary key field for this warehouse."""
+
+        return cast(InstrumentedAttribute, getattr(self.item_model, self.pk_name))
+
+    @property
+    def pk_name(self) -> str:
+        """Get the name of the primary key field for this warehouse."""
+
+        return cast(str, self.item_model.primary_key_field)
