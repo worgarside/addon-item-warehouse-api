@@ -5,15 +5,19 @@ from json import dumps
 from logging import getLogger
 from typing import ClassVar, cast
 
-from pydantic import create_model
+from pydantic import Field, create_model
 from sqlalchemy import JSON, Column, DateTime, Integer, String
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from wg_utilities.loggers import add_stream_handler
 
-from item_warehouse.src.app._exceptions import DuplicateFieldError
+from item_warehouse.src.app._exceptions import (
+    DuplicateFieldError,
+    WarehouseNotFoundError,
+)
 from item_warehouse.src.app.schemas import (
+    DefaultFunctionType,
     ItemAttributeType,
     ItemBase,
     ItemFieldDefinition,
@@ -37,10 +41,10 @@ class Warehouse(Base):  # type: ignore[misc]
     _ITEM_UPDATE_SCHEMAS: ClassVar[dict[str, ItemUpdateBase]] = {}
 
     name: Column[str] = Column(
-        name="name", type_=String(255), primary_key=True, unique=True, index=True
+        name="name", type_=String(length=255), primary_key=True, unique=True, index=True
     )
     item_name: Column[str] = Column(
-        name="item_name", type_=String(255), unique=True, nullable=False
+        name="item_name", type_=String(length=255), unique=True, nullable=False
     )
     item_schema: Column[dict[str, ItemFieldDefinition[ItemAttributeType]]] = Column(
         name="item_schema", type_=JSON, nullable=False  # type: ignore[arg-type]
@@ -64,20 +68,28 @@ class Warehouse(Base):  # type: ignore[misc]
 
         return cls._ITEM_MODELS.get(warehouse_name)
 
-    def drop_warehouse(self, *, no_exist_ok: bool = False) -> None:
+    def drop(self, *, no_exist_ok: bool = False) -> None:
         """Drop the physical table for storing items in."""
 
         LOGGER.info("Dropping warehouse %r", self.name)
 
         try:
             self.item_model.__table__.drop(bind=self.ENGINE)
-        except OperationalError:
-            if no_exist_ok:
+        except OperationalError as exc:
+            if "unknown table" in str(exc).lower():
+                if not no_exist_ok:
+                    raise WarehouseNotFoundError(self.name) from exc
+
                 LOGGER.info(
                     "Warehouse %r does not exist, so not dropping it.", self.name
                 )
             else:
                 raise
+        finally:
+            Base.metadata.remove(self.item_model.__table__)
+
+            self._ITEM_MODELS.pop(self.name, None)
+            self._ITEM_SCHEMAS.pop(self.name, None)
 
     def intialise_warehouse(self) -> None:
         """Create a new physical table for storing items in."""
@@ -102,6 +114,7 @@ class Warehouse(Base):  # type: ignore[misc]
                 ),
             }
 
+            _field_def: ItemFieldDefinition[ItemAttributeType]
             for field_name, _field_def in self.item_schema.items():
                 if field_name in model_fields:
                     raise DuplicateFieldError(field_name)
@@ -171,9 +184,19 @@ class Warehouse(Base):  # type: ignore[misc]
             pydantic_schema = {}
 
             for field_name, field_definition in item_schema_parsed.items():
+                field_kwargs: dict[str, object | DefaultFunctionType[object]] = {}
+
+                if callable(field_definition.default):
+                    field_kwargs["default_factory"] = field_definition.default
+                else:
+                    field_kwargs["default"] = field_definition.default
+
+                if max_length := field_definition.type_kwargs.get("length"):
+                    field_kwargs["max_length"] = max_length
+
                 pydantic_schema[field_name] = (
                     field_definition.type().python_type,
-                    field_definition.default,
+                    Field(**field_kwargs),  # type: ignore[arg-type,pydantic-field]
                 )
 
             item_name_camel_case = "".join(

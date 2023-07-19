@@ -4,13 +4,12 @@ from json import dumps
 from logging import getLogger
 from typing import TYPE_CHECKING, Literal, overload
 
-from pydantic import ValidationError
-from sqlalchemy.exc import IntegrityError, OperationalError
+from fastapi import HTTPException, status
+from sqlalchemy.exc import DataError, IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
 
 from item_warehouse.src.app._exceptions import (
-    HttpValidationError,
     InvalidFieldsError,
     ItemNotFoundError,
     ItemSchemaNotFoundError,
@@ -62,7 +61,12 @@ def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> WarehouseMod
 
 def delete_warehouse(db: Session, /, warehouse_name: str) -> None:
     """Delete a warehouse."""
-    db.query(WarehouseModel).filter(WarehouseModel.id == warehouse_name).delete()
+    warehouse = get_warehouse(db, warehouse_name)
+
+    warehouse.drop(no_exist_ok=True)
+
+    db.query(WarehouseModel).filter(WarehouseModel.name == warehouse_name).delete()
+
     db.commit()
 
 
@@ -197,19 +201,29 @@ def create_item(
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    try:
-        LOGGER.debug("Validating item into schema: %r ", item)
-        item_schema: ItemBase = warehouse.item_schema_class.model_validate(item)
-    except ValidationError as exc:
-        raise HttpValidationError(exc) from exc
+    LOGGER.debug("Validating item into schema: %r ", item)
+    item_schema: ItemBase = warehouse.item_schema_class.model_validate(item)
 
     LOGGER.debug("Dumping item into model: %r", item_schema)
 
     # Excluding unset values mean any default functions don't get returned as-is.
     db_item = warehouse.item_model(**item_schema.model_dump(exclude_unset=True))
 
-    db.add(db_item)
-    db.commit()
+    try:
+        db.add(db_item)
+        db.commit()
+    except DataError as exc:
+        # This is a fallback really, Pydantic validation should have caught the error
+        # before this point.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "type": "DataError",
+                "code": exc.orig.args[0],
+                "message": exc.orig.args[1],
+            },
+        ) from exc
+
     db.refresh(db_item)
 
     # Re-parse so that we've got any new/updated values from the database.
@@ -367,10 +381,7 @@ def update_item(
         dumps(new_item_dict, indent=2, sort_keys=True),
     )
 
-    try:
-        warehouse.item_schema_class.model_validate(new_item_dict)
-    except ValidationError as exc:
-        raise HttpValidationError(exc) from exc
+    warehouse.item_schema_class.model_validate(new_item_dict)
 
     try:
         db.query(warehouse.item_model).filter(warehouse.pk == item_pk).update(

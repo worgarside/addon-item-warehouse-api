@@ -8,8 +8,12 @@ from json import dumps
 from logging import getLogger
 from typing import Annotated, Any
 
-from fastapi import Body, Depends, FastAPI, HTTPException, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.params import Query
+from fastapi.responses import JSONResponse
+from pydantic import ValidationError
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
 
@@ -19,7 +23,7 @@ from item_warehouse.src.app._exceptions import (
     ItemSchemaExistsError,
     WarehouseExistsError,
 )
-from item_warehouse.src.app.database import Base, SessionLocal
+from item_warehouse.src.app.database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
 from item_warehouse.src.app.models import Warehouse as WarehouseModel
 from item_warehouse.src.app.schemas import (
     GeneralItemModelType,
@@ -33,13 +37,18 @@ LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
 
-
-Base.metadata.create_all(bind=WarehouseModel.ENGINE)
+try:
+    Base.metadata.create_all(bind=WarehouseModel.ENGINE)
+except OperationalError:
+    LOGGER.debug(SQLALCHEMY_DATABASE_URL)
+    raise
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Populate the item model/schema lookups before the application lifecycle starts."""
+
+    LOGGER.debug("http://localhost:8000/docs")
 
     db = SessionLocal()
 
@@ -65,6 +74,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    LOGGER.debug(
+        "Warehouse._ITEM_SCHEMAS: %r",
+        WarehouseModel._ITEM_SCHEMAS,  # pylint: disable=protected-access
+    )
+    LOGGER.debug(
+        "Warehouse._ITEM_MODELS: %r",
+        WarehouseModel._ITEM_MODELS,  # pylint: disable=protected-access
+    )
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -75,6 +93,40 @@ class ApiTag(StrEnum):
     ITEM = auto()
     ITEM_SCHEMA = auto()
     WAREHOUSE = auto()
+
+
+@app.exception_handler(ValidationError)
+def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
+    """Handle Pydantic validation errors."""
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=[
+            {
+                "msg": err.get("msg"),
+                "loc": err.get("loc"),
+                "type": err.get("type"),
+            }
+            for err in exc.errors()
+        ],
+    )
+
+
+@app.exception_handler(RequestValidationError)
+def request_validation_error_handler(
+    _: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Handle FastAPI request validation errors."""
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content=[
+            {
+                "msg": err.get("msg"),
+                "loc": err.get("loc"),
+                "type": err.get("type"),
+            }
+            for err in exc.errors()
+        ],
+    )
 
 
 # Warehouse Endpoints

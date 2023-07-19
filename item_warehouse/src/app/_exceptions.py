@@ -3,8 +3,16 @@
 
 from abc import ABC
 from collections.abc import Callable
+from json import dumps
+from logging import getLogger
+from os import environ
 
 from fastapi import HTTPException, status
+from wg_utilities.loggers import add_stream_handler
+
+LOGGER = getLogger(__name__)
+LOGGER.setLevel("DEBUG")
+add_stream_handler(LOGGER)
 
 
 class _HTTPExceptionBase(ABC, HTTPException):
@@ -32,24 +40,13 @@ def _http_exception_factory(
 
             self.status_code = response_status
 
+            LOGGER.debug(dumps(self.detail, default=str))
+
     return _HTTPException
 
 
 DuplicateFieldError = _http_exception_factory(
     status.HTTP_400_BAD_REQUEST, "Field {!r} is duplicated."
-)
-
-
-HttpValidationError = _http_exception_factory(
-    status.HTTP_400_BAD_REQUEST,
-    lambda exc: [
-        {
-            "msg": err.get("msg"),
-            "loc": err.get("loc"),
-            "type": err.get("type"),
-        }
-        for err in exc.errors()
-    ],
 )
 
 
@@ -72,9 +69,24 @@ InvalidFieldsError = _http_exception_factory(
     status.HTTP_400_BAD_REQUEST, "Invalid field(s): {!r}."
 )
 
+MissingTypeArgumentError = _http_exception_factory(
+    status.HTTP_400_BAD_REQUEST,
+    lambda *args: {
+        "message": f"Column type {args[0]!s} requires kwarg(s): {args[1]!r}. This may"
+        f" be due to the database driver value: {environ['DATABASE_DRIVER_NAME']}",
+        "field_config": args[2],
+    },
+)
+
 UniqueConstraintError = _http_exception_factory(
     status.HTTP_400_BAD_REQUEST,
     "Field {!r} with value {!r} violates unique constraint.",
+)
+
+ValueMustBeOneOfError = _http_exception_factory(
+    status.HTTP_400_BAD_REQUEST,
+    lambda value, *enum: f"Value for field {value!r} must be one of:"
+    f" {', '.join(str(e) for e in enum)}.",
 )
 
 WarehouseExistsError = _http_exception_factory(

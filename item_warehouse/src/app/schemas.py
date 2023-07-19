@@ -6,20 +6,20 @@ from datetime import date, datetime
 from enum import Enum
 from json import dumps
 from logging import getLogger
+from os import environ
 from re import Pattern
 from re import compile as re_compile
-from typing import Any, ClassVar, Generic, Literal, TypeVar
+from typing import ClassVar, Generic, Literal, TypeVar
 from uuid import uuid4
 
 from bidict import MutableBidict, bidict
-from fastapi import HTTPException, status
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    FieldValidationInfo,
     field_serializer,
     field_validator,
-    model_validator,
 )
 from sqlalchemy import (
     JSON,
@@ -36,6 +36,11 @@ from sqlalchemy.sql.schema import NULL_UNSPECIFIED  # type: ignore[attr-defined]
 from sqlalchemy.types import UserDefinedType
 from wg_utilities.loggers import add_stream_handler
 
+from item_warehouse.src.app._exceptions import (
+    MissingTypeArgumentError,
+    ValueMustBeOneOfError,
+)
+
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
@@ -51,6 +56,8 @@ ItemAttributeType = (
     | type[JSON]
     | type[Float]
 )
+
+STRING_REQUIRES_LENGTH = environ["DATABASE_DRIVER_NAME"].split("+")[1] == "pymysql"
 
 
 class ItemType(Enum):
@@ -148,6 +155,8 @@ class DefaultFunction(UserDefinedType[DFT]):
 class ItemFieldDefinition(BaseModel, Generic[T]):
     """A Item schema definition."""
 
+    _STRING_PATTERN: ClassVar[Pattern[str]] = re_compile(r"^string\((\d+)\)$")
+
     autoincrement: bool | Literal["auto", "ignore_fk"] = "auto"
     default: object | DefaultFunction[T] = None
     index: bool | None = None
@@ -156,6 +165,7 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
         NULL_UNSPECIFIED
     ] = NULL_UNSPECIFIED
     primary_key: bool = False
+    type_kwargs: dict[str, object] = Field(default_factory=dict)
     type: T  # noqa: A003
     unique: bool | None = None
 
@@ -179,45 +189,58 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
 
         return typ.__name__.lower()
 
-    @model_validator(mode="before")
-    def _validate_model(cls, data: dict[str, Any]) -> dict[str, Any]:  # noqa: N805
-        """Validate the ItemFieldDefinition model."""
+    @field_validator("type", mode="before")
+    def validate_type(cls, typ: str | T, info: FieldValidationInfo) -> T:  # noqa: N805
+        """Validate the ItemFieldDefinition type field."""
 
-        if isinstance(typ := data["type"], str):
+        if isinstance(typ, str):
             try:
                 LOGGER.debug("Converting string %r to ItemType", typ)
-                data["type"] = ItemType[typ.lower()].value
+                typ = ItemType[typ.lower()].value  # type: ignore[assignment]
             except KeyError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"type {typ!r} must be a string matching one"
-                    f" of `{'`, `'.join(ItemType.__members__.keys())}`.",
+                raise ValueMustBeOneOfError(
+                    typ, ItemType.__members__.keys(), cls._STRING_PATTERN.pattern
                 ) from exc
 
-        if data["type"] not in ITEM_TYPE_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"type {typ!r} must be a string matching one"
-                f" of `{'`, `'.join(ItemType.__members__.keys())}`.",
-            )
+        if isinstance(typ, type):
+            # Not isinstance because typ is a literal type
+            if typ not in ITEM_TYPE_TYPES:
+                raise ValueMustBeOneOfError(
+                    typ, ItemType.__members__.keys(), cls._STRING_PATTERN.pattern
+                )
 
-        if (default := data.get("default")) is not None and isinstance(default, str):
+            if (
+                typ == String
+                and STRING_REQUIRES_LENGTH
+                and "length" not in info.data.get("type_kwargs", ())
+            ):
+                raise MissingTypeArgumentError(
+                    String, "length", info.data | {"type": repr(typ)}
+                )
+
+        return typ  # type: ignore[return-value]
+
+    @field_validator("default", mode="before")
+    def validate_default(
+        cls, default: object | DefaultFunction[T]  # noqa: N805
+    ) -> object | DefaultFunction[T]:
+        """Validate the ItemFieldDefinition default field."""
+
+        if isinstance(default, str):
             match default.split(":", 1):
                 case "func", func_name:
-                    try:
-                        data["default"] = DefaultFunction.get_by_name(func_name)
-                    except KeyError as exc:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"default function {func_name!r} must be one"
-                            f" of `{'`, `'.join(DefaultFunction.get_names())}`.",
-                        ) from exc
+                    default_func: DefaultFunction[T] | None
+                    if not (default_func := DefaultFunction.get_by_name(func_name)):
+                        raise ValueMustBeOneOfError(
+                            func_name,
+                            DefaultFunction.get_names(),
+                        )
+
+                    default = default_func
                 case _:
                     pass
 
-        LOGGER.debug("Validated ItemFieldDefinition: %r", data)
-
-        return data
+        return default
 
     def model_dump_column(self, field_name: str | None = None) -> Column[T]:
         """Dump the ItemFieldDefinition as a SQLAlchemy Column."""
@@ -227,11 +250,16 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
         if field_name is not None:
             params["name"] = field_name
 
-        params["type_"] = params.pop("type")
+        type_ = params.pop("type")
+
+        if type_kwargs := params.pop("type_kwargs", None):
+            type_ = type_(**type_kwargs)
+
+        params["type_"] = type_
 
         LOGGER.debug(
             "Dumping ItemFieldDefinition as Column: %s",
-            dumps(params, sort_keys=True, default=repr),
+            dumps(params, indent=2, sort_keys=True, default=repr),
         )
 
         return Column(**params)
@@ -271,6 +299,7 @@ class WarehouseCreate(WarehouseBase):
                         "name": {
                             "nullable": False,
                             "type": "string",
+                            "type_kwargs": {"length": 255},
                         },
                         "age": {
                             "nullable": True,
@@ -297,6 +326,7 @@ class WarehouseCreate(WarehouseBase):
                         "password": {
                             "nullable": False,
                             "type": "string",
+                            "type_kwargs": {"length": 64},
                             "default": "func:uuid4",
                         },
                         "employee_number": {

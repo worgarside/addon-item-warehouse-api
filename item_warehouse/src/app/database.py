@@ -3,6 +3,7 @@
 from datetime import date, datetime
 from json import dumps
 from logging import getLogger
+from os import environ, getenv
 from typing import Any, ClassVar
 
 from sqlalchemy import Table
@@ -20,14 +21,15 @@ LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
 
-# DATABASE_USERNAME = environ["DATABASE_USERNAME"]  # noqa: ERA001
-# DATABASE_PASSWORD = environ["DATABASE_PASSWORD"]  # noqa: ERA001
-# DATABASE_HOST = getenv("DATABASE_HOST", "homeassistant.local")  # noqa: ERA001
-# DATABASE_PORT = int(getenv("DATABASE_PORT", "3306"))  # noqa: ERA001
-# DATABASE_NAME = getenv("DATABASE_NAME", "item_warehouse")  # noqa: ERA001
+DATABASE_USERNAME = environ["DATABASE_USERNAME"]
+DATABASE_PASSWORD = environ["DATABASE_PASSWORD"]
+DATABASE_DRIVER_NAME = environ["DATABASE_DRIVER_NAME"]
+DATABASE_HOST = getenv("DATABASE_HOST", "homeassistant.local")
+DATABASE_PORT = int(getenv("DATABASE_PORT", "3306"))
+DATABASE_NAME = getenv("DATABASE_NAME", "item_warehouse")
 
-# SQLALCHEMY_DATABASE_URL = f"mariadb+pymysql://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}?charset=utf8mb4"  # noqa: E501 ERA001
-SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
+SQLALCHEMY_DATABASE_URL = f"{DATABASE_DRIVER_NAME}://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}?charset=utf8mb4"  # noqa: E501
+# SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db" # noqa: ERA001
 
 
 class _BaseExtra:
@@ -102,7 +104,9 @@ class _BaseExtra:
 _BaseExtra.ENGINE = create_engine(
     SQLALCHEMY_DATABASE_URL,
     json_serializer=_BaseExtra._custom_json_serializer,  # pylint: disable=protected-access
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False}
+    if SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+    else {},
 )
 
 Base = declarative_base(cls=_BaseExtra)
