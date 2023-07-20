@@ -1,5 +1,14 @@
-include item_warehouse/.env
-export
+pynguin-%:
+	cd item_warehouse/src/app && \
+	DATABASE_URL=sqlite:///./pynguin.db \
+	PYNGUIN_DANGER_AWARE=1 \
+	pynguin -v \
+		--project-path . \
+		--output-path ../../test \
+		--module-name $(*) \
+		--assertion_generation SIMPLE \
+		--algorithm MOSA
+
 
 api:
 	clear
@@ -13,6 +22,7 @@ api-clean:
 docker:
 	cd item_warehouse && \
 	docker-compose --verbose up --build
+
 
 # VSCode Shortcuts #
 

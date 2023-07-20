@@ -3,7 +3,20 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from enum import StrEnum, auto
+
+try:
+    from enum import StrEnum, auto
+except ImportError:
+    # pylint: disable=ungrouped-imports
+    from sys import version
+
+    if not version.startswith("3.10"):
+        raise
+
+    # This is just for Pynguin
+    from enum import auto  # noqa: I001
+    from strenum import StrEnum  # type: ignore[import,no-redef]
+
 from json import dumps
 from logging import getLogger
 from typing import Annotated, Any

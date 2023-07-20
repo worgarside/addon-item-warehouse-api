@@ -6,7 +6,7 @@ from datetime import date, datetime
 from enum import Enum
 from json import dumps
 from logging import getLogger
-from os import environ
+from os import getenv
 from re import Pattern
 from re import compile as re_compile
 from typing import ClassVar, Generic, Literal, TypeVar
@@ -53,7 +53,9 @@ ItemAttributeType = (
     | type[Float]
 )
 
-STRING_REQUIRES_LENGTH = environ["DATABASE_DRIVER_NAME"].split("+")[-1] == "pymysql"
+STRING_REQUIRES_LENGTH = (
+    getenv("DATABASE_DRIVER_NAME", "+pymysql").split("+")[-1] == "pymysql"
+)
 
 
 class ItemType(Enum):
