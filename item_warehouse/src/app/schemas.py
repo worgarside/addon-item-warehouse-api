@@ -12,6 +12,7 @@ from re import compile as re_compile
 from typing import ClassVar, Generic, Literal, TypeVar
 from uuid import uuid4
 
+from _exceptions import MissingTypeArgumentError, ValueMustBeOneOfError
 from bidict import MutableBidict, bidict
 from pydantic import (
     BaseModel,
@@ -36,11 +37,6 @@ from sqlalchemy.sql.schema import NULL_UNSPECIFIED  # type: ignore[attr-defined]
 from sqlalchemy.types import UserDefinedType
 from wg_utilities.loggers import add_stream_handler
 
-from item_warehouse.src.app._exceptions import (
-    MissingTypeArgumentError,
-    ValueMustBeOneOfError,
-)
-
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
 add_stream_handler(LOGGER)
@@ -57,7 +53,7 @@ ItemAttributeType = (
     | type[Float]
 )
 
-STRING_REQUIRES_LENGTH = environ["DATABASE_DRIVER_NAME"].split("+")[1] == "pymysql"
+STRING_REQUIRES_LENGTH = environ["DATABASE_DRIVER_NAME"].split("+")[-1] == "pymysql"
 
 
 class ItemType(Enum):

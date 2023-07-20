@@ -3,10 +3,9 @@
 from collections.abc import Generator
 from logging import getLogger
 
+from database import SessionLocal
 from sqlalchemy.orm import Session
 from wg_utilities.loggers import add_stream_handler
-
-from item_warehouse.src.app.database import SessionLocal
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")

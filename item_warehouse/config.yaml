@@ -1,0 +1,31 @@
+---
+name: Item Warehouse
+description: A warehouse with an API on the front of it
+version: 0.1.0
+slug: item_warehouse
+init: false
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: before
+options:
+  database_url:
+  database_username:
+  database_password:
+  database_driver_name:
+  database_host:
+  database_port:
+  database_name:
+schema:
+  database_url: str
+  database_username: str
+  database_password: str
+  database_driver_name: str
+  database_host: str
+  database_port: int
+  database_name: str
+ports:
+  8002/tcp: 8002

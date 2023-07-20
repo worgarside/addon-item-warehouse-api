@@ -8,30 +8,26 @@ from json import dumps
 from logging import getLogger
 from typing import Annotated, Any
 
+import crud
+from _dependencies import get_db
+from _exceptions import ItemSchemaExistsError, WarehouseExistsError
+from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.params import Query
 from fastapi.responses import JSONResponse
+from models import Warehouse as WarehouseModel
 from pydantic import ValidationError
-from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
-from wg_utilities.loggers import add_stream_handler
-
-from item_warehouse.src.app import crud
-from item_warehouse.src.app._dependencies import get_db
-from item_warehouse.src.app._exceptions import (
-    ItemSchemaExistsError,
-    WarehouseExistsError,
-)
-from item_warehouse.src.app.database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
-from item_warehouse.src.app.models import Warehouse as WarehouseModel
-from item_warehouse.src.app.schemas import (
+from schemas import (
     GeneralItemModelType,
     ItemResponse,
     ItemSchema,
     Warehouse,
     WarehouseCreate,
 )
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
+from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel("DEBUG")
@@ -47,8 +43,6 @@ except OperationalError:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Populate the item model/schema lookups before the application lifecycle starts."""
-
-    LOGGER.debug("http://localhost:8000/docs")
 
     db = SessionLocal()
 
@@ -396,6 +390,8 @@ if __name__ == "__main__":
     import uvicorn
 
     LOGGER.info("Starting server...")
-    LOGGER.debug("http://localhost:8000/docs")
+    LOGGER.debug("http://localhost:8002/docs")
 
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8002)  # noqa: S104
+else:
+    LOGGER.debug("http://localhost:8000/docs")

@@ -10,8 +10,17 @@ api-clean:
 	rm sql_app.db || :
 	make api
 
+docker:
+	cd item_warehouse && \
+	docker-compose --verbose up --build
+
+# VSCode Shortcuts #
+
 vscode-shortcut-1:
 	make api
 
 vscode-shortcut-2:
 	make api-clean
+
+vscode-shortcut-3:
+	make docker
