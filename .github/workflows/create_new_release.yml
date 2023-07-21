@@ -1,0 +1,15 @@
+---
+name: Create New Release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 0 * * *
+
+jobs:
+  create-new-release:
+    name: Create New Release
+    # yamllint disable-line rule:line-length
+    uses: worgarside/github-config-files/.github/workflows/create_new_release.yml@main
+    secrets:
+      gh-token: ${{ secrets.WORGARSIDE_DEV_TOKEN }}
