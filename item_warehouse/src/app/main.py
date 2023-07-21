@@ -105,6 +105,7 @@ class ApiTag(StrEnum):
 @app.exception_handler(ValidationError)
 def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
     """Handle Pydantic validation errors."""
+    LOGGER.debug("400 Bad Request")
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -123,6 +124,7 @@ def request_validation_error_handler(
     _: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Handle FastAPI request validation errors."""
+    LOGGER.debug("400 Bad Request")
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -141,6 +143,7 @@ def response_validation_error_handler(
     _: Request, exc: ResponseValidationError
 ) -> JSONResponse:
     """Handle FastAPI response validation errors."""
+    LOGGER.debug("500 Internal Server Error")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=[
