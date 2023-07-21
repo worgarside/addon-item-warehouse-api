@@ -1,9 +1,6 @@
 """API for managing warehouses and items."""
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-
 try:
     from enum import StrEnum, auto
 except ImportError:
@@ -17,16 +14,18 @@ except ImportError:
     from enum import auto  # noqa: I001
     from strenum import StrEnum  # type: ignore[import,no-redef]
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from json import dumps
 from logging import getLogger
 from typing import Annotated, Any
 
 import crud
 from _dependencies import get_db
-from _exceptions import ItemSchemaExistsError, WarehouseExistsError
 from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
+from exceptions import ItemSchemaExistsError, WarehouseExistsError
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, status
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.params import Query
 from fastapi.responses import JSONResponse
 from models import Warehouse as WarehouseModel
@@ -35,6 +34,7 @@ from schemas import (
     GeneralItemModelType,
     ItemResponse,
     ItemSchema,
+    SqlStr,
     Warehouse,
     WarehouseCreate,
 )
@@ -136,6 +136,24 @@ def request_validation_error_handler(
     )
 
 
+@app.exception_handler(ResponseValidationError)
+def response_validation_error_handler(
+    _: Request, exc: ResponseValidationError
+) -> JSONResponse:
+    """Handle FastAPI response validation errors."""
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=[
+            {
+                "msg": err.get("msg"),
+                "loc": err.get("loc"),
+                "type": err.get("type"),
+            }
+            for err in exc.errors()
+        ],
+    )
+
+
 # Warehouse Endpoints
 
 
@@ -145,12 +163,6 @@ def create_warehouse(
 ) -> WarehouseModel:
     """Create a warehouse."""
 
-    if warehouse.name == "warehouse":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Warehouse name 'warehouse' is reserved.",
-        )
-
     if (
         db_warehouse := crud.get_warehouse(db, warehouse.name, no_exist_ok=True)
     ) is not None:
@@ -159,14 +171,7 @@ def create_warehouse(
     if crud.get_item_schema(db, warehouse.item_name, no_exist_ok=True) is not None:
         raise ItemSchemaExistsError(warehouse.item_name)
 
-    try:
-        return crud.create_warehouse(db, warehouse)
-    except Exception as exc:
-        LOGGER.exception(repr(exc))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f'Failed to create warehouse {warehouse.name!r}: "{exc}"',
-        ) from exc
+    return crud.create_warehouse(db, warehouse)
 
 
 @app.delete(
@@ -229,7 +234,7 @@ def get_item_schema(
 
 @app.get(
     "/v1/items/schemas",
-    response_model=dict[str, ItemSchema],
+    response_model=dict[SqlStr, ItemSchema],
     tags=[ApiTag.ITEM_SCHEMA],
 )
 def get_item_schemas(

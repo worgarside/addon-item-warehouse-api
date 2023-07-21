@@ -4,14 +4,14 @@ from json import dumps
 from logging import getLogger
 from typing import TYPE_CHECKING, Literal, overload
 
-from _exceptions import (
+from database import GeneralItemModelType
+from exceptions import (
     InvalidFieldsError,
     ItemNotFoundError,
     ItemSchemaNotFoundError,
     UniqueConstraintError,
     WarehouseNotFoundError,
 )
-from database import GeneralItemModelType
 from fastapi import HTTPException, status
 from models import Warehouse as WarehouseModel
 from schemas import ItemBase, ItemResponse, ItemSchema, WarehouseCreate

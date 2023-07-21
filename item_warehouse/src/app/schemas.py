@@ -9,12 +9,14 @@ from logging import getLogger
 from os import getenv
 from re import Pattern
 from re import compile as re_compile
-from typing import ClassVar, Generic, Literal, TypeVar
+from typing import Annotated, ClassVar, Generic, Literal, TypeVar
 from uuid import uuid4
 
-from _exceptions import MissingTypeArgumentError, ValueMustBeOneOfError
+from annotated_types import Len
 from bidict import MutableBidict, bidict
+from exceptions import MissingTypeArgumentError, ValueMustBeOneOfError
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -72,6 +74,33 @@ class ItemType(Enum):
 
 
 ITEM_TYPE_TYPES = tuple(item_type.value for item_type in ItemType)
+
+SQL_NAME_PATTERN = re_compile(r"^[a-zA-Z0-9_]+$")
+
+
+def _validate_sql_identifier(value: str) -> str:
+    """Validate a SQL identifier.
+
+    Args:
+        value (str): The value to validate.
+
+    Raises:
+        ValueError: If the value is not a valid SQL identifier.
+
+    Returns:
+        str: The value, if it is a valid SQL identifier.
+    """
+    if not SQL_NAME_PATTERN.fullmatch(value):
+        raise ValueError(f"{value!r} is not a valid SQL identifier.")  # noqa: TRY003
+
+    return value
+
+
+SqlStr = Annotated[
+    str,
+    Len(min_length=1, max_length=64),
+    AfterValidator(_validate_sql_identifier),
+]
 
 # Warehouse Schemas
 
@@ -158,12 +187,12 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
     autoincrement: bool | Literal["auto", "ignore_fk"] = "auto"
     default: object | DefaultFunction[T] = None
     index: bool | None = None
-    key: str | None = None
+    key: SqlStr | None = None
     nullable: bool | Literal[  # type: ignore[valid-type]
         NULL_UNSPECIFIED
     ] = NULL_UNSPECIFIED
     primary_key: bool = False
-    type_kwargs: dict[str, object] = Field(default_factory=dict)
+    type_kwargs: dict[SqlStr, object] = Field(default_factory=dict)
     type: T  # noqa: A003
     unique: bool | None = None
 
@@ -266,12 +295,13 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
 class WarehouseBase(BaseModel):
     """A simple Warehouse schema."""
 
-    NAME_PATTERN: ClassVar[Pattern[str]] = re_compile(r"^[a-zA-Z0-9_]+$")
-
-    name: str = Field(pattern=NAME_PATTERN.pattern, min_length=1, max_length=64)
+    name: SqlStr
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    item_name: str = Field(pattern=NAME_PATTERN.pattern, min_length=1, max_length=64)
-    item_schema: dict[str, ItemFieldDefinition[ItemAttributeType]]
+    item_name: SqlStr
+    item_schema: dict[
+        SqlStr,
+        ItemFieldDefinition[ItemAttributeType],
+    ]
 
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
 
@@ -379,6 +409,6 @@ class ItemUpdateBase(BaseModel):
     }
 
 
-ItemSchema = dict[str, ItemFieldDefinition[ItemAttributeType]]
+ItemSchema = dict[SqlStr, ItemFieldDefinition[ItemAttributeType]]
 
-GeneralItemModelType = dict[str, object | None]
+GeneralItemModelType = dict[SqlStr, object | None]
