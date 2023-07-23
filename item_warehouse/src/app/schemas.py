@@ -118,10 +118,10 @@ class DefaultFunction(UserDefinedType[DFT]):
 
     _FUNCTIONS: MutableBidict[str, DefaultFunctionType[object]] = bidict(
         {
-            "utcnow": datetime.utcnow,
-            "today": date.today,
-            "uuid4": lambda: str(uuid4()),
             "client_ip": lambda: None,  # Always overridden in ItemBase.model_validate
+            "today": date.today,
+            "utcnow": datetime.utcnow,
+            "uuid4": lambda: str(uuid4()),
         }
     )
 
