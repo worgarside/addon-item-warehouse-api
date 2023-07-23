@@ -15,6 +15,7 @@ from uuid import uuid4
 from annotated_types import Len
 from bidict import MutableBidict, bidict
 from exceptions import MissingTypeArgumentError, ValueMustBeOneOfError
+from fastapi import HTTPException, status
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -23,6 +24,7 @@ from pydantic import (
     FieldValidationInfo,
     field_serializer,
     field_validator,
+    model_validator,
 )
 from sqlalchemy import (
     JSON,
@@ -119,6 +121,7 @@ class DefaultFunction(UserDefinedType[DFT]):
             "utcnow": datetime.utcnow,
             "today": date.today,
             "uuid4": lambda: str(uuid4()),
+            "client_ip": lambda: None,  # Always overridden in ItemBase.model_validate
         }
     )
 
@@ -211,7 +214,7 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
         return default
 
     @field_serializer("type", return_type=str, when_used="json")
-    def serialize_type(self, typ: T) -> str:
+    def json_serialize_type(self, typ: T) -> str:
         """Serialize the Item type."""
 
         return typ.__name__.lower()
@@ -390,6 +393,31 @@ class ItemBase(BaseModel):
         "arbitrary_types_allowed": True,
         "extra": "forbid",
     }
+
+    @model_validator(mode="before")
+    def validate_model(
+        cls, values: dict[str, object]  # noqa: N805
+    ) -> dict[str, object]:
+        """Validate the Item model."""
+
+        client_ip = values.pop("_request.client.host", None)
+
+        for field, v in cls.model_fields.items():
+            if (
+                not values.get(field)
+                and isinstance(v.default_factory, DefaultFunction)
+                and v.default_factory.ref == "func:client_ip"
+            ):
+                LOGGER.debug("Found client_ip field: %s", field)
+                if not client_ip:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Missing client IP for field {field!r}.",
+                    )
+
+                values[field] = client_ip
+
+        return values
 
 
 class ItemResponse(ItemBase):

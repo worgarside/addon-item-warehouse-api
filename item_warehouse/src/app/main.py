@@ -272,12 +272,16 @@ def create_item(
             ]
         ),
     ],
+    request: Request,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> ItemResponse:
     """Create an item."""
 
     LOGGER.info("POST\t/v1/warehouses/%s/items", warehouse_name)
     LOGGER.debug(dumps(item))
+
+    if client := request.client:
+        item.update({"_request.client.host": client.host})
 
     res = crud.create_item(db, warehouse_name, item)
 

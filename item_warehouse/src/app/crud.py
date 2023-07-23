@@ -196,6 +196,7 @@ def create_item(
     warehouse = get_warehouse(db, warehouse_name)
 
     LOGGER.debug("Validating item into schema: %r ", item)
+
     item_schema: ItemBase = warehouse.item_schema_class.model_validate(item)
 
     LOGGER.debug("Dumping item into model: %r", item_schema)
