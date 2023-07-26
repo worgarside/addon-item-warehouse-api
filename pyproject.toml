@@ -114,3 +114,6 @@ ignore = [
 
 [tool.ruff.pydocstyle]
 convention = "google"
+
+[tool.ruff.pylint]
+max-args=6

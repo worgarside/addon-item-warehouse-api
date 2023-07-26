@@ -16,7 +16,7 @@ from fastapi import HTTPException, status
 from models import Warehouse as WarehouseModel
 from schemas import ItemBase, ItemResponse, ItemSchema, WarehouseCreate
 from sqlalchemy.exc import DataError, IntegrityError, OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session
 from wg_utilities.loggers import add_stream_handler
 
 if TYPE_CHECKING:
@@ -227,23 +227,27 @@ def create_item(
     )  # type: ignore[return-value]
 
 
-def delete_item(db: Session, /, warehouse_name: str, item_pk: str) -> None:
+def delete_item(
+    db: Session, /, warehouse_name: str, search_values: dict[str, str]
+) -> None:
     """Delete an item from a warehouse."""
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    _ = get_item(db, warehouse_name, item_pk)
+    _ = get_item_by_pk(db, warehouse_name, pk_values=search_values)
 
-    db.query(warehouse.item_model).filter(warehouse.pk == item_pk).delete()
+    db.query(warehouse.item_model).filter(
+        warehouse.pk == warehouse.parse_pk_dict(search_values)
+    ).delete()
     db.commit()
 
 
 @overload
-def get_item(
+def get_item_by_pk(
     db: Session,
     /,
     warehouse_name: str,
-    item_pk: str,
+    pk_values: dict[str, str],
     field_names: list[str] | None = None,
     *,
     no_exist_ok: Literal[False] = False,
@@ -252,11 +256,11 @@ def get_item(
 
 
 @overload
-def get_item(
+def get_item_by_pk(
     db: Session,
     /,
     warehouse_name: str,
-    item_pk: str,
+    pk_values: dict[str, str],
     field_names: list[str] | None = None,
     *,
     no_exist_ok: Literal[True] = True,
@@ -264,11 +268,11 @@ def get_item(
     ...
 
 
-def get_item(
+def get_item_by_pk(
     db: Session,
     /,
     warehouse_name: str,
-    item_pk: str,
+    pk_values: dict[str, str],
     field_names: list[str] | None = None,
     *,
     no_exist_ok: bool = False,
@@ -278,7 +282,7 @@ def get_item(
     Args:
         db (Session): The database session to use.
         warehouse_name (str): The name of the warehouse to get the item from.
-        item_pk (str): The primary key of the item to get.
+        pk_values (dict[str, str]): The primary key values of the item to get.
         field_names (list[str], optional): The names of the fields to return. Defaults
             to None.
         no_exist_ok (bool, optional): Whether to suppress the error thrown if the item
@@ -301,6 +305,8 @@ def get_item(
         ]
         raise InvalidFieldsError(unknown_fields)
 
+    item_pk = warehouse.parse_pk_dict(pk_values)
+
     if (item := db.query(warehouse.item_model).get(item_pk)) is None:
         if no_exist_ok:
             return None
@@ -316,15 +322,18 @@ def get_items(
     warehouse_name: str,
     field_names: list[str] | None = None,
     *,
+    search_params: dict[str, str],
     offset: int = 0,
     limit: int = 100,
-) -> list[ItemResponse]:
+) -> list[GeneralItemModelType] | GeneralItemModelType:
     """Get a list of items in a warehouse.
 
     Args:
         db (Session): The database session to use.
         warehouse_name (str): The name of the warehouse to get the items from.
         field_names (list[str], optional): The names of the fields to return. Defaults
+            to None.
+        search_params (dict[str, str], optional): The parameters to search for. Defaults
             to None.
         offset (int, optional): The offset to use when querying the database.
             Defaults to 0.
@@ -340,34 +349,54 @@ def get_items(
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    if not field_names:
-        return [  # type: ignore[var-annotated]
-            item.as_dict()
-            for item in db.query(warehouse.item_model).offset(offset).limit(limit).all()
-        ]
-
-    field_names = sorted(field_names)
-
-    try:
-        fields = tuple(
-            getattr(warehouse.item_model, field_name) for field_name in field_names
+    if warehouse.search_params_are_pks(search_params):
+        LOGGER.debug("Searching for item by primary key.")
+        return get_item_by_pk(
+            db,
+            warehouse_name=warehouse_name,
+            field_names=field_names,
+            pk_values=search_params,
         )
-    except AttributeError as exc:
-        raise InvalidFieldsError(exc.name) from exc
 
-    results = db.query(*fields).offset(offset).limit(limit).all()
+    if not field_names:
+        query: Query[WarehouseModel] = db.query(warehouse.item_model)
+    else:
+        field_names = sorted(field_names)
 
-    return [dict(zip(field_names, row, strict=True)) for row in results]  # type: ignore[misc]
+        try:
+            fields = tuple(
+                getattr(warehouse.item_model, field_name) for field_name in field_names
+            )
+        except AttributeError as exc:
+            raise InvalidFieldsError(exc.name) from exc
+
+        query = db.query(*fields)
+
+    if search_params:
+        for k, v in search_params.items():
+            query = query.filter(getattr(warehouse.item_model, k) == v)
+
+    results = query.offset(offset).limit(limit).all()
+
+    if field_names:
+        return [dict(zip(field_names, row, strict=True)) for row in results]
+
+    return [row.as_dict() for row in results]
 
 
 def update_item(
-    db: Session, /, *, warehouse_name: str, item_pk: str, item_update: dict[str, object]
+    db: Session,
+    /,
+    *,
+    warehouse_name: str,
+    pk_values: dict[str, str],
+    item_update: dict[str, object],
 ) -> GeneralItemModelType:
     """Update an item in a warehouse."""
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    current_item_dict = get_item(db, warehouse_name, item_pk)
+    current_item_dict = get_item_by_pk(db, warehouse_name, pk_values=pk_values)
 
     new_item_dict = current_item_dict | item_update
 
@@ -377,6 +406,7 @@ def update_item(
     )
 
     warehouse.item_schema_class.model_validate(new_item_dict)
+    item_pk = warehouse.parse_pk_dict(pk_values)
 
     try:
         db.query(warehouse.item_model).filter(warehouse.pk == item_pk).update(
@@ -384,10 +414,8 @@ def update_item(
         )
     except IntegrityError as exc:
         if "unique constraint failed" in str(exc).lower():
-            raise UniqueConstraintError(
-                warehouse.pk_name, item_update[warehouse.pk_name]
-            ) from exc
+            raise UniqueConstraintError(warehouse.pk_name, item_pk) from exc
         raise
 
     db.commit()
-    return get_item(db, warehouse_name, item_pk)
+    return get_item_by_pk(db, warehouse_name, pk_values=pk_values)

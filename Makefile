@@ -16,7 +16,7 @@ api:
 
 api-clean:
 	clear
-	rm item_warehouse/src/app/sql_app.db || :
+	rm sql_app.db || :
 	make api
 
 docker:

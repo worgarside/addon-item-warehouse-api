@@ -327,44 +327,46 @@ class WarehouseCreate(WarehouseBase):
                     "name": "payroll",
                     "item_name": "employee",
                     "item_schema": {
-                        "name": {
-                            "nullable": False,
-                            "type": "string",
-                            "type_kwargs": {"length": 255},
-                        },
                         "age": {
-                            "nullable": True,
-                            "type": "integer",
                             "default": -1,
-                        },
-                        "salary": {
-                            "nullable": False,
+                            "nullable": True,
                             "type": "integer",
                         },
                         "alive": {
                             "nullable": False,
                             "type": "boolean",
                         },
+                        "employee_number": {
+                            "nullable": False,
+                            "primary_key": True,
+                            "type": "integer",
+                            "unique": True,
+                        },
                         "hire_date": {
                             "nullable": False,
+                            "primary_key": True,
                             "type": "date",
                         },
                         "last_login": {
+                            "default": "func:utcnow",
                             "nullable": True,
                             "type": "datetime",
-                            "default": "func:utcnow",
+                        },
+                        "name": {
+                            "nullable": False,
+                            "primary_key": True,
+                            "type": "string",
+                            "type_kwargs": {"length": 255},
                         },
                         "password": {
+                            "default": "func:uuid4",
                             "nullable": False,
                             "type": "string",
                             "type_kwargs": {"length": 64},
-                            "default": "func:uuid4",
                         },
-                        "employee_number": {
-                            "unique": True,
+                        "salary": {
                             "nullable": False,
                             "type": "integer",
-                            "primary_key": True,
                         },
                     },
                 }
