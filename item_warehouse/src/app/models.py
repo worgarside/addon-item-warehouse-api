@@ -3,17 +3,20 @@
 from datetime import date, datetime
 from json import dumps
 from logging import getLogger
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from database import Base
 from exceptions import DuplicateFieldError, InvalidFieldsError, WarehouseNotFoundError
 from pydantic import Field, create_model
 from schemas import (
     DefaultFunctionType,
+    GeneralItemModelType,
     ItemAttributeType,
     ItemBase,
     ItemFieldDefinition,
     ItemUpdateBase,
+    PythonType,
+    QueryParamType,
 )
 from sqlalchemy import JSON, Column, DateTime, Integer, String
 from sqlalchemy.exc import OperationalError
@@ -64,11 +67,11 @@ class Warehouse(Base):  # type: ignore[misc]
 
         return cls._ITEM_MODELS.get(warehouse_name)
 
-    def search_params_are_pks(self, search_params: dict[str, str]) -> bool:
+    def search_params_are_pks(self, search_params: dict[str, Any]) -> bool:
         """Check if the given search params are the primary key for this warehouse.
 
         Args:
-            search_params (dict[str, str]): The search params to check.
+            search_params (GeneralItemModelType): The search params to check.
 
         Returns:
             bool: True if the search params are the primary key for this warehouse,
@@ -106,14 +109,16 @@ class Warehouse(Base):  # type: ignore[misc]
 
         self.item_model.__table__.create(bind=self.ENGINE)
 
-    def parse_pk_dict(self, pk_dict: dict[str, str]) -> tuple[object, ...]:
-        """Parse a primary key dict into a tuple of SQLAlchemy primary key objects.
+    def parse_pk_dict(
+        self, pk_dict: GeneralItemModelType | QueryParamType
+    ) -> tuple[PythonType, ...]:
+        """Parse a PK dict into a tuple of SQLAlchemy PK objects for comparison.
 
         Args:
-            pk_dict (dict[str,str]): The primary key dict to parse.
+            pk_dict (dict[str, str]): The primary key dict to parse.
 
         Returns:
-            tuple[object, ...]: The parsed primary key objects.
+            tuple[PythonType, ...]: The parsed primary key objects.
         """
 
         if not self.search_params_are_pks(pk_dict):
@@ -138,14 +143,7 @@ class Warehouse(Base):  # type: ignore[misc]
         if self.name not in self._ITEM_MODELS:
             LOGGER.info("Creating SQLAlchemy model for warehouse %r", self.name)
 
-            model_fields: dict[str, Column[ItemAttributeType] | str] = {
-                "created_at": Column(
-                    name="created_at",
-                    type_=DateTime,  # type: ignore[arg-type]
-                    nullable=False,
-                    default=datetime.utcnow,
-                ),
-            }
+            model_fields: dict[str, Column[ItemAttributeType] | str] = {}
 
             user_defined_pk = False
 
@@ -213,7 +211,9 @@ class Warehouse(Base):  # type: ignore[misc]
             pydantic_schema = {}
 
             for field_name, field_definition in item_schema_parsed.items():
-                field_kwargs: dict[str, object | DefaultFunctionType[object]] = {}
+                field_kwargs: dict[
+                    str, PythonType | DefaultFunctionType[PythonType]
+                ] = {}
 
                 if callable(field_definition.default):
                     field_kwargs["default_factory"] = field_definition.default
@@ -257,6 +257,6 @@ class Warehouse(Base):  # type: ignore[misc]
 
     @property
     def pk_name(self) -> tuple[str, ...]:
-        """Get the name of the primary key field for this warehouse."""
+        """Get the name of the primary key field(s) for this warehouse."""
 
         return tuple(pk.name for pk in inspect(self.item_model).primary_key)

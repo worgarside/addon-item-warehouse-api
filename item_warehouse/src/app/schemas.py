@@ -57,6 +57,8 @@ ItemAttributeType = (
     | type[Float]
 )
 
+PythonType = int | str | datetime | date | bool | dict | float | None
+
 STRING_REQUIRES_LENGTH = (
     getenv("DATABASE_DRIVER_NAME", "+pymysql").split("+")[-1] == "pymysql"
 )
@@ -106,9 +108,9 @@ SqlStr = Annotated[
 
 # Warehouse Schemas
 
-T = TypeVar("T", bound=ItemAttributeType)
+SqlT = TypeVar("SqlT", bound=ItemAttributeType)
 
-DFT = TypeVar("DFT", bound=object)
+DFT = TypeVar("DFT", bound=PythonType)
 
 DefaultFunctionType = Callable[..., DFT]
 
@@ -116,16 +118,16 @@ DefaultFunctionType = Callable[..., DFT]
 class DefaultFunction(UserDefinedType[DFT]):
     """A default function for an ItemFieldDefinition."""
 
-    _FUNCTIONS: MutableBidict[str, DefaultFunctionType[object]] = bidict(
+    _FUNCTIONS: MutableBidict[str, DefaultFunctionType[PythonType]] = bidict(
         {
-            "client_ip": lambda: None,  # Always overridden in ItemBase.model_validate
+            "client_ip": lambda: 0,  # Always overridden in ItemBase.model_validate
             "today": date.today,
             "utcnow": datetime.utcnow,
             "uuid4": lambda: str(uuid4()),
         }
     )
 
-    def __init__(self, name: str, func: DefaultFunctionType[object]) -> None:
+    def __init__(self, name: str, func: DefaultFunctionType[PythonType]) -> None:
         """Initialise a default function.
 
         The class lookup `_FUNCTIONS` is updated with the function if it is not already
@@ -136,9 +138,9 @@ class DefaultFunction(UserDefinedType[DFT]):
         if name not in self._FUNCTIONS:
             self._FUNCTIONS[name] = func
 
-        self.func: DefaultFunctionType[object] = self._FUNCTIONS[name]
+        self.func: DefaultFunctionType[PythonType] = self._FUNCTIONS[name]
 
-    def __call__(self) -> object:
+    def __call__(self) -> PythonType:
         """Call the default function."""
         return self.func()
 
@@ -182,21 +184,21 @@ class DefaultFunction(UserDefinedType[DFT]):
         return sorted(cls._FUNCTIONS.keys())
 
 
-class ItemFieldDefinition(BaseModel, Generic[T]):
+class ItemFieldDefinition(BaseModel, Generic[SqlT]):
     """A Item schema definition."""
 
     _STRING_PATTERN: ClassVar[Pattern[str]] = re_compile(r"^string\((\d+)\)$")
 
     autoincrement: bool | Literal["auto", "ignore_fk"] = "auto"
-    default: object | DefaultFunction[T] = None
+    default: PythonType | DefaultFunction[PythonType] = None
     index: bool | None = None
     key: SqlStr | None = None
     nullable: bool | Literal[  # type: ignore[valid-type]
         NULL_UNSPECIFIED
     ] = NULL_UNSPECIFIED
     primary_key: bool = False
-    type_kwargs: dict[SqlStr, object] = Field(default_factory=dict)
-    type: T  # noqa: A003
+    type_kwargs: dict[SqlStr, PythonType] = Field(default_factory=dict)
+    type: SqlT  # noqa: A003
     unique: bool | None = None
 
     model_config: ClassVar[ConfigDict] = {
@@ -205,7 +207,9 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
     }
 
     @field_serializer("default", return_type=object, when_used="json")
-    def json_serialize_default(self, default: object | DefaultFunction[T]) -> object:
+    def json_serialize_default(
+        self, default: PythonType | DefaultFunction[PythonType]
+    ) -> PythonType | str:
         """Serialize the Item default."""
 
         if isinstance(default, DefaultFunction):
@@ -214,13 +218,15 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
         return default
 
     @field_serializer("type", return_type=str, when_used="json")
-    def json_serialize_type(self, typ: T) -> str:
+    def json_serialize_type(self, typ: SqlT) -> str:
         """Serialize the Item type."""
 
         return typ.__name__.lower()
 
     @field_validator("type", mode="before")
-    def validate_type(cls, typ: str | T, info: FieldValidationInfo) -> T:  # noqa: N805
+    def validate_type(
+        cls, typ: str | SqlT, info: FieldValidationInfo  # noqa: N805
+    ) -> SqlT:
         """Validate the ItemFieldDefinition type field."""
 
         if isinstance(typ, str):
@@ -252,14 +258,14 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
 
     @field_validator("default", mode="before")
     def validate_default(
-        cls, default: object | DefaultFunction[T]  # noqa: N805
-    ) -> object | DefaultFunction[T]:
+        cls, default: PythonType | DefaultFunction[PythonType]  # noqa: N805
+    ) -> PythonType | DefaultFunction[PythonType]:
         """Validate the ItemFieldDefinition default field."""
 
         if isinstance(default, str):
             match default.split(":", 1):
                 case "func", func_name:
-                    default_func: DefaultFunction[T] | None
+                    default_func: DefaultFunction[PythonType] | None
                     if not (default_func := DefaultFunction.get_by_name(func_name)):
                         raise ValueMustBeOneOfError(
                             func_name,
@@ -272,7 +278,7 @@ class ItemFieldDefinition(BaseModel, Generic[T]):
 
         return default
 
-    def model_dump_column(self, field_name: str | None = None) -> Column[T]:
+    def model_dump_column(self, field_name: str | None = None) -> Column[SqlT]:
         """Dump the ItemFieldDefinition as a SQLAlchemy Column."""
 
         params = self.model_dump(exclude_unset=True)
@@ -389,8 +395,6 @@ class Warehouse(WarehouseBase):
 class ItemBase(BaseModel):
     """Base model for items."""
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
     model_config: ClassVar[ConfigDict] = {
         "arbitrary_types_allowed": True,
         "extra": "forbid",
@@ -441,4 +445,6 @@ class ItemUpdateBase(BaseModel):
 
 ItemSchema = dict[SqlStr, ItemFieldDefinition[ItemAttributeType]]
 
-GeneralItemModelType = dict[SqlStr, object | None]
+GeneralItemModelType = dict[SqlStr, PythonType | None]
+
+QueryParamType = dict[str, str]

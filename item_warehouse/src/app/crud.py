@@ -7,15 +7,14 @@ from typing import TYPE_CHECKING, Literal, overload
 from database import GeneralItemModelType
 from exceptions import (
     InvalidFieldsError,
+    ItemExistsError,
     ItemNotFoundError,
     ItemSchemaNotFoundError,
-    UniqueConstraintError,
     WarehouseNotFoundError,
 )
-from fastapi import HTTPException, status
 from models import Warehouse as WarehouseModel
-from schemas import ItemBase, ItemResponse, ItemSchema, WarehouseCreate
-from sqlalchemy.exc import DataError, IntegrityError, OperationalError
+from schemas import ItemBase, ItemResponse, ItemSchema, QueryParamType, WarehouseCreate
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Query, Session
 from wg_utilities.loggers import add_stream_handler
 
@@ -189,11 +188,18 @@ def get_item_schemas(db: Session, /) -> dict[str, ItemSchema]:
 
 
 def create_item(
-    db: Session, warehouse_name: str, item: dict[str, object]
+    db: Session, warehouse_name: str, item: GeneralItemModelType
 ) -> ItemResponse:
     """Create an item in a warehouse."""
 
     warehouse = get_warehouse(db, warehouse_name)
+
+    pk_values: GeneralItemModelType = {
+        pk_name: item[pk_name] for pk_name in warehouse.pk_name
+    }
+
+    if get_item_by_pk(db, warehouse_name, pk_values=pk_values, no_exist_ok=True):
+        raise ItemExistsError(pk_values, warehouse_name)
 
     LOGGER.debug("Validating item into schema: %r ", item)
 
@@ -204,21 +210,8 @@ def create_item(
     # Excluding unset values mean any default functions don't get returned as-is.
     db_item = warehouse.item_model(**item_schema.model_dump(exclude_unset=True))
 
-    try:
-        db.add(db_item)
-        db.commit()
-    except DataError as exc:
-        # This is a fallback really, Pydantic validation should have caught the error
-        # before this point.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "type": "DataError",
-                "code": exc.orig.args[0],
-                "message": exc.orig.args[1],
-            },
-        ) from exc
-
+    db.add(db_item)
+    db.commit()
     db.refresh(db_item)
 
     # Re-parse so that we've got any new/updated values from the database.
@@ -228,7 +221,7 @@ def create_item(
 
 
 def delete_item(
-    db: Session, /, warehouse_name: str, search_values: dict[str, str]
+    db: Session, /, warehouse_name: str, search_values: QueryParamType
 ) -> None:
     """Delete an item from a warehouse."""
 
@@ -237,7 +230,7 @@ def delete_item(
     _ = get_item_by_pk(db, warehouse_name, pk_values=search_values)
 
     db.query(warehouse.item_model).filter(
-        warehouse.pk == warehouse.parse_pk_dict(search_values)
+        warehouse.item_model.pk == warehouse.parse_pk_dict(search_values)
     ).delete()
     db.commit()
 
@@ -247,7 +240,7 @@ def get_item_by_pk(
     db: Session,
     /,
     warehouse_name: str,
-    pk_values: dict[str, str],
+    pk_values: GeneralItemModelType | QueryParamType,
     field_names: list[str] | None = None,
     *,
     no_exist_ok: Literal[False] = False,
@@ -260,7 +253,7 @@ def get_item_by_pk(
     db: Session,
     /,
     warehouse_name: str,
-    pk_values: dict[str, str],
+    pk_values: GeneralItemModelType | QueryParamType,
     field_names: list[str] | None = None,
     *,
     no_exist_ok: Literal[True] = True,
@@ -272,7 +265,7 @@ def get_item_by_pk(
     db: Session,
     /,
     warehouse_name: str,
-    pk_values: dict[str, str],
+    pk_values: GeneralItemModelType | QueryParamType,
     field_names: list[str] | None = None,
     *,
     no_exist_ok: bool = False,
@@ -322,7 +315,7 @@ def get_items(
     warehouse_name: str,
     field_names: list[str] | None = None,
     *,
-    search_params: dict[str, str],
+    search_params: QueryParamType,
     offset: int = 0,
     limit: int = 100,
 ) -> list[GeneralItemModelType] | GeneralItemModelType:
@@ -389,8 +382,8 @@ def update_item(
     /,
     *,
     warehouse_name: str,
-    pk_values: dict[str, str],
-    item_update: dict[str, object],
+    pk_values: GeneralItemModelType,
+    item_update: GeneralItemModelType,
 ) -> GeneralItemModelType:
     """Update an item in a warehouse."""
 
@@ -409,12 +402,12 @@ def update_item(
     item_pk = warehouse.parse_pk_dict(pk_values)
 
     try:
-        db.query(warehouse.item_model).filter(warehouse.pk == item_pk).update(
-            item_update
-        )
+        db.query(warehouse.item_model).filter(
+            warehouse.item_model.pk == item_pk
+        ).update(item_update)
     except IntegrityError as exc:
         if "unique constraint failed" in str(exc).lower():
-            raise UniqueConstraintError(warehouse.pk_name, item_pk) from exc
+            raise ItemExistsError(pk_values, warehouse_name) from exc
         raise
 
     db.commit()

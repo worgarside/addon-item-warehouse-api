@@ -107,7 +107,7 @@ def request_validation_error_handler(
     _: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Handle FastAPI request validation errors."""
-    LOGGER.debug("400 Bad Request")
+    LOGGER.debug("400 Bad Request: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -126,6 +126,7 @@ def response_validation_error_handler(
     _: Request, exc: ResponseValidationError
 ) -> JSONResponse:
     """Handle FastAPI response validation errors."""
+    LOGGER.debug("500 Internal Server Error: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=[
@@ -142,7 +143,7 @@ def response_validation_error_handler(
 @app.exception_handler(SQLAlchemyError)
 def sqlalchemy_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
     """Handle SQLAlchemy errors."""
-    LOGGER.debug("500 Internal Server Error")
+    LOGGER.debug("500 Internal Server Error: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": str(exc)},
@@ -152,7 +153,7 @@ def sqlalchemy_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
 @app.exception_handler(ValidationError)
 def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
     """Handle Pydantic validation errors."""
-    LOGGER.debug("400 Bad Request")
+    LOGGER.debug("400 Bad Request: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -237,7 +238,7 @@ def update_warehouse(
     warehouse_name: str,
     warehouse: WarehouseCreate,
     db: Session = Depends(get_db),  # noqa: B008
-) -> dict[str, str]:
+) -> Any:
     """Update a warehouse in a warehouse."""
     return crud.update_warehouse(db, warehouse_name, warehouse)
 
@@ -282,7 +283,7 @@ def get_item_schemas(
 def create_item(
     warehouse_name: str,
     item: Annotated[
-        dict[str, object],
+        GeneralItemModelType,
         Body(
             examples=[
                 {
@@ -378,7 +379,7 @@ def update_item(
     request: Request,
     warehouse_name: str,
     item: Annotated[
-        dict[str, object],
+        GeneralItemModelType,
         Body(
             examples=[
                 {
