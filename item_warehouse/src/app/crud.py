@@ -12,6 +12,7 @@ from exceptions import (
     ItemSchemaNotFoundError,
     WarehouseNotFoundError,
 )
+from models import Page
 from models import Warehouse as WarehouseModel
 from schemas import ItemBase, ItemResponse, ItemSchema, QueryParamType, WarehouseCreate
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -99,9 +100,9 @@ def get_warehouses(
     /,
     *,
     offset: int = 0,
-    limit: int = 100,
+    limit: int | None = None,
     allow_no_warehouse_table: bool = False,
-) -> list[WarehouseModel]:
+) -> Page[WarehouseModel]:
     """Get a list of warehouses.
 
     Args:
@@ -118,15 +119,31 @@ def get_warehouses(
     """
 
     try:
-        return db.query(WarehouseModel).offset(offset).limit(limit).all()
+        query = db.query(WarehouseModel).offset(offset)
+
+        if limit is not None:
+            query = query.limit(limit)
+
+        items = query.all()
+        total = db.query(WarehouseModel).count()
     except OperationalError as exc:
         if (
             allow_no_warehouse_table
             and f"no such table: {WarehouseModel.__tablename__}" in str(exc)
         ):
-            return []
+            return Page.empty()
 
         raise
+
+    limit = limit or total
+    nwxt_offset = offset + limit
+
+    return Page(
+        count=len(items),
+        items=items,
+        next_offset=nwxt_offset if (nwxt_offset) < total else None,
+        total=total,
+    )
 
 
 def update_warehouse(
@@ -316,7 +333,8 @@ def get_items(
     search_params: QueryParamType,
     offset: int = 0,
     limit: int = 100,
-) -> list[GeneralItemModelType] | GeneralItemModelType:
+) -> Page[GeneralItemModelType] | GeneralItemModelType:
+    # pylint: disable=too-many-locals
     """Get a list of items in a warehouse.
 
     Args:
@@ -370,9 +388,20 @@ def get_items(
     results = query.offset(offset).limit(limit).all()
 
     if field_names:
-        return [dict(zip(field_names, row, strict=True)) for row in results]
+        items = [dict(zip(field_names, row, strict=True)) for row in results]
+    else:
+        items = [row.as_dict() for row in results]
 
-    return [row.as_dict() for row in results]
+    total = get_item_count(db, warehouse_name)
+
+    next_offset = offset + limit
+
+    return Page(
+        count=len(items),
+        items=items,
+        next_offset=next_offset if next_offset < total else None,
+        total=total,
+    )
 
 
 def update_item(
@@ -410,3 +439,12 @@ def update_item(
 
     db.commit()
     return get_item_by_pk(db, warehouse_name, pk_values=pk_values)
+
+
+# TODO caching!
+def get_item_count(db: Session, /, warehouse_name: str) -> int:
+    """Get the number of items in a warehouse."""
+
+    warehouse = get_warehouse(db, warehouse_name)
+
+    return db.query(warehouse.item_model).count()

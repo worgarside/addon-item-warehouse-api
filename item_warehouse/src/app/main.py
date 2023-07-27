@@ -26,8 +26,9 @@ from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
 from exceptions import ItemSchemaExistsError, WarehouseExistsError
 from fastapi import Body, Depends, FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
-from fastapi.params import Query
+from fastapi.params import Path, Query
 from fastapi.responses import JSONResponse
+from models import Page
 from models import Warehouse as WarehouseModel
 from pydantic import ValidationError
 from schemas import (
@@ -53,6 +54,20 @@ except OperationalError:
     raise
 
 
+class ApiTag(StrEnum):
+    """API tags."""
+
+    ITEM = auto()
+    ITEM_SCHEMA = auto()
+    PAGINATED = auto()
+    WAREHOUSE = auto()
+
+
+SqlStrPath = Annotated[
+    str, Path(pattern=r"^[a-zA-Z0-9_]+$", min_length=1, max_length=64)
+]
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     """Populate the item model/schema lookups before the application lifecycle starts."""
@@ -63,7 +78,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         for warehouse in crud.get_warehouses(
             db,
             allow_no_warehouse_table=True,
-        ):
+        ).items:
             # Just accessing the item_model property will create the SQLAlchemy model.
             __ = warehouse.item_model
             ___ = warehouse.item_schema_class
@@ -92,14 +107,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
-
-
-class ApiTag(StrEnum):
-    """API tags."""
-
-    ITEM = auto()
-    ITEM_SCHEMA = auto()
-    WAREHOUSE = auto()
 
 
 @app.exception_handler(RequestValidationError)
@@ -199,7 +206,7 @@ def create_warehouse(
     tags=[ApiTag.WAREHOUSE],
 )
 def delete_warehouse(
-    warehouse_name: str, db: Session = Depends(get_db)  # noqa: B008
+    warehouse_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
 ) -> None:
     """Delete a warehouse."""
     crud.delete_warehouse(db, warehouse_name)
@@ -212,7 +219,7 @@ def delete_warehouse(
     response_model_exclude_unset=True,
 )
 def get_warehouse(
-    warehouse_name: str, db: Session = Depends(get_db)  # noqa: B008
+    warehouse_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
 ) -> WarehouseModel:
     """Get a warehouse."""
 
@@ -221,13 +228,15 @@ def get_warehouse(
 
 @app.get(
     "/v1/warehouses",
-    response_model=list[Warehouse],
-    tags=[ApiTag.WAREHOUSE],
+    response_model=Page[Warehouse],
+    tags=[ApiTag.PAGINATED, ApiTag.WAREHOUSE],
     response_model_exclude_unset=True,
 )
 def get_warehouses(
-    offset: int = 0, limit: int = 100, db: Session = Depends(get_db)  # noqa: B008
-) -> list[WarehouseModel]:
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(gt=0, le=100)] = 100,
+    db: Session = Depends(get_db),  # noqa: B008
+) -> Page[WarehouseModel]:
     """List warehouses."""
 
     return crud.get_warehouses(db, offset=offset, limit=limit)
@@ -235,7 +244,7 @@ def get_warehouses(
 
 @app.put("/v1/warehouses/{warehouse_name}", tags=[ApiTag.WAREHOUSE])
 def update_warehouse(
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     warehouse: WarehouseCreate,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> Any:
@@ -253,7 +262,7 @@ def update_warehouse(
     response_model_exclude_unset=True,
 )
 def get_item_schema(
-    item_name: str, db: Session = Depends(get_db)  # noqa: B008
+    item_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
 ) -> ItemSchema:
     """Get an item's schema."""
     return crud.get_item_schema(db, item_name)
@@ -281,7 +290,7 @@ def get_item_schemas(
     tags=[ApiTag.ITEM],
 )
 def create_item(
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     item: Annotated[
         GeneralItemModelType,
         Body(
@@ -323,7 +332,7 @@ def create_item(
 )
 def delete_item(
     request: Request,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> None:
     """Delete an item in a warehouse."""
@@ -333,14 +342,14 @@ def delete_item(
 
 @app.get(
     "/v1/warehouses/{warehouse_name}/items",
-    response_model=list[ItemResponse] | ItemResponse,
-    tags=[ApiTag.ITEM],
+    response_model=Page[ItemResponse] | ItemResponse,
+    tags=[ApiTag.ITEM, ApiTag.PAGINATED],
 )
 def get_items(
     request: Request,
-    warehouse_name: str,
-    offset: int = 0,
-    limit: int = 100,
+    warehouse_name: SqlStrPath,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(gt=0, le=100)] = 100,
     fields: Annotated[
         str,
         Query(
@@ -352,7 +361,7 @@ def get_items(
     ]
     | None = None,
     db: Session = Depends(get_db),  # noqa: B008
-) -> list[GeneralItemModelType] | GeneralItemModelType:
+) -> Page[GeneralItemModelType] | GeneralItemModelType:
     """Get items in a warehouse."""
 
     field_names = fields.split(",") if fields else None
@@ -377,7 +386,7 @@ def get_items(
 )
 def update_item(
     request: Request,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     item: Annotated[
         GeneralItemModelType,
         Body(

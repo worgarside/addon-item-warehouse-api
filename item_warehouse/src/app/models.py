@@ -1,23 +1,26 @@
 """SQLAlchemy models for item_warehouse."""
+from __future__ import annotations
 
 from datetime import date, datetime
 from json import dumps
 from logging import getLogger
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 from database import Base
 from exceptions import DuplicateFieldError, InvalidFieldsError, WarehouseNotFoundError
-from pydantic import Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model
 from schemas import (
     DefaultFunctionType,
     GeneralItemModelType,
     ItemAttributeType,
     ItemBase,
     ItemFieldDefinition,
+    ItemResponse,
     ItemUpdateBase,
     PythonType,
     QueryParamType,
 )
+from schemas import Warehouse as WarehouseSchema
 from sqlalchemy import JSON, Column, DateTime, Integer, String
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.inspection import inspect
@@ -260,3 +263,25 @@ class Warehouse(Base):  # type: ignore[misc]
         """Get the name of the primary key field(s) for this warehouse."""
 
         return tuple(pk.name for pk in inspect(self.item_model).primary_key)
+
+
+PageItem = TypeVar(
+    "PageItem", bound=GeneralItemModelType | ItemResponse | Warehouse | WarehouseSchema
+)
+
+
+class Page(BaseModel, Generic[PageItem]):
+    """A page of results."""
+
+    count: int
+    items: list[PageItem]
+    next_offset: int | None = None
+    total: int
+
+    model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
+
+    @classmethod
+    def empty(cls) -> Page[PageItem]:
+        """Create an empty page."""
+
+        return cls(count=0, items=[], total=0)
