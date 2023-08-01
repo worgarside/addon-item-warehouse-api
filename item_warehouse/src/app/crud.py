@@ -302,15 +302,13 @@ def get_item_by_pk(
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    if field_names and any(
-        field_name not in warehouse.item_model.__table__.columns.keys()
-        for field_name in field_names
-    ):
-        unknown_fields = [
+    if field_names and (
+        unknown_fields := [
             field_name
             for field_name in field_names
-            if field_name not in warehouse.item_model.__table__.columns.keys()
+            if field_name not in warehouse.item_model.__table__.columns
         ]
+    ):
         raise InvalidFieldsError(unknown_fields)
 
     item_pk = warehouse.parse_pk_dict(pk_values)
