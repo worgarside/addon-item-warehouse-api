@@ -1,7 +1,7 @@
 ---
 name: Item Warehouse
 description: A warehouse with an API on the front of it
-version: 0.1.0
+version: 1.0.0
 slug: item_warehouse
 init: false
 arch:
