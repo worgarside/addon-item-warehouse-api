@@ -417,6 +417,6 @@ if __name__ == "__main__":
     LOGGER.info("Starting server...")
     LOGGER.debug("http://localhost:8002/docs")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)  # noqa: S104
+    uvicorn.run(app, host="0.0.0.0", port=8002)  # noqa: S104
 else:
     LOGGER.debug("http://localhost:8000/docs")
