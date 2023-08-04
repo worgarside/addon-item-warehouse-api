@@ -226,8 +226,14 @@ class Warehouse(Base):  # type: ignore[misc]
                 if max_length := field_definition.type_kwargs.get("length"):
                     field_kwargs["max_length"] = max_length
 
+                field_type = (
+                    field_definition.type().python_type | None
+                    if field_definition.nullable is True
+                    else field_definition.type().python_type
+                )
+
                 pydantic_schema[field_name] = (
-                    field_definition.type().python_type,
+                    field_type,
                     Field(**field_kwargs),  # type: ignore[arg-type,pydantic-field]
                 )
 
