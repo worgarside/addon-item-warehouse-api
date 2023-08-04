@@ -136,12 +136,12 @@ def get_warehouses(
         raise
 
     limit = limit or total
-    nwxt_offset = offset + limit
+    next_offset = offset + limit
 
-    return Page(
+    return Page[WarehouseModel](
         count=len(items),
         items=items,
-        next_offset=nwxt_offset if (nwxt_offset) < total else None,
+        next_offset=next_offset if next_offset < total else None,
         total=total,
     )
 
@@ -394,7 +394,7 @@ def get_items(
 
     next_offset = offset + limit
 
-    return Page(
+    return Page[GeneralItemModelType](
         count=len(items),
         items=items,
         next_offset=next_offset if next_offset < total else None,
