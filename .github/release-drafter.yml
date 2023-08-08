@@ -50,7 +50,9 @@ version-resolver:
 exclude-contributors:
   - '@dependabot'
   - dependabot
+  - app/dependabot
   - dependabot[bot]
   - '@pre-commit-ci'
   - pre-commit-ci
+  - app/pre-commit-ci
   - pre-commit-ci[bot]
