@@ -50,7 +50,7 @@ disallow_any_generics = true
 check_untyped_defs = true
 no_implicit_reexport = true
 disallow_untyped_defs = true
-mypy_path = "item_warehouse/src/app"
+mypy_path = "item_warehouse/src/api"
 plugins = ["pydantic.mypy", "sqlmypy"]
 
 [tool.pydantic-mypy]

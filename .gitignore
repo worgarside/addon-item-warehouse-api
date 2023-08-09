@@ -5,7 +5,6 @@
 .DS_store
 *.pyc
 *.csv
-*.json
 *.xlsx
 *.xlsm
 *.docx
@@ -17,7 +16,6 @@
 test.py
 !requirements*.txt
 .aws-sam
-*.html
 .google_maps_location_sharing.cookies.*_com
 sandbox
 addons/**/.ssh
@@ -277,3 +275,5 @@ fabric.properties
 !cdk.json
 
 *.db
+
+node_modules
