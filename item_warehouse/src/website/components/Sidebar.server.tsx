@@ -1,29 +1,19 @@
-'use client'
+// Sidebar.server.tsx
 
-import Link from 'next/link';
-import styles from '../styles/sidebar.module.css'
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { getWarehouses } from '../services/api';
+import styles from '../styles/sidebar.module.css';
+import Link from 'next/link';
 import Icon from '@mdi/react';
 import { mdiWarehouse } from '@mdi/js';
+
 interface Warehouse {
     name: string;
 }
 
-interface SidebarProps {
-}
-
-const Sidebar: React.FC<SidebarProps> = () => {
-    const [warehouses, setWarehouses] = useState([]);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            const warehouseData = await getWarehouses();
-            setWarehouses(warehouseData);
-        };
-
-        fetchData();
-    }, []);
+const Sidebar: React.FC = async () => {
+    // Directly using await since we're in a server component
+    const warehouses = await getWarehouses();
 
     return (
         <div className={styles.sidebar}>
@@ -31,7 +21,7 @@ const Sidebar: React.FC<SidebarProps> = () => {
             <div className='list-group'>
                 {warehouses.map((warehouse: Warehouse) => (
                     <Link className='list-group-item text-decoration-none' href={`/warehouse/${encodeURIComponent(warehouse.name)}`}>
-                        <Icon class="me-2" path={mdiWarehouse} size={1} />{warehouse.name}
+                        <Icon className="me-2" path={mdiWarehouse} size={1} />{warehouse.name}
                     </Link>
                 ))}
             </div>
