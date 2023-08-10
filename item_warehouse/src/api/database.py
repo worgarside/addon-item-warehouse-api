@@ -1,5 +1,7 @@
 """Database constants and classes."""
 
+from __future__ import annotations
+
 from datetime import date, datetime
 from json import dumps
 from logging import getLogger

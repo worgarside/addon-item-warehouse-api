@@ -1,5 +1,7 @@
 """CRUD operations for the warehouse app."""
 
+from __future__ import annotations
+
 from json import dumps
 from logging import getLogger
 from typing import TYPE_CHECKING, Literal, overload

@@ -1,5 +1,7 @@
 """Dependency injection for the FastAPI app."""
 
+from __future__ import annotations
+
 from collections.abc import Generator
 from logging import getLogger
 
