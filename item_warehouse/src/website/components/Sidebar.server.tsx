@@ -12,7 +12,6 @@ interface Warehouse {
 }
 
 const Sidebar: React.FC = async () => {
-    // Directly using await since we're in a server component
     const warehouses = await getWarehouses();
 
     return (

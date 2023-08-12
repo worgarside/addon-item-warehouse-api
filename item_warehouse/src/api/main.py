@@ -203,7 +203,7 @@ def create_warehouse(
     ) is not None:
         raise WarehouseExistsError(db_warehouse)
 
-    if crud.get_item_schema(db, warehouse.item_name, no_exist_ok=True) is not None:
+    if crud.get_schema(db, item_name=warehouse.item_name, no_exist_ok=True) is not None:
         raise ItemSchemaExistsError(warehouse.item_name)
 
     return crud.create_warehouse(db, warehouse)
@@ -262,20 +262,20 @@ def update_warehouse(
     return crud.update_warehouse(db, warehouse_name, warehouse)
 
 
-# Item Schema Endpoints
+# Warehouse Schema Endpoints
 
 
 @app.get(
-    "/v1/items/{item_name}/schema/",
+    "/v1/warehouses/{warehouse_name}/schema",
     response_model=ItemSchema,
     tags=[ApiTag.ITEM_SCHEMA],
     response_model_exclude_unset=True,
 )
 def get_item_schema(
-    item_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
+    warehouse_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
 ) -> ItemSchema:
-    """Get an item's schema."""
-    return crud.get_item_schema(db, item_name)
+    """Get an warehouse's/item's schema."""
+    return crud.get_schema(db, warehouse_name=warehouse_name)
 
 
 @app.get(

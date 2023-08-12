@@ -1,5 +1,5 @@
 
-import Warehouse from "@/components/Warehouse.server"
+import Warehouse from "@/components/Warehouse.client"
 
 
 

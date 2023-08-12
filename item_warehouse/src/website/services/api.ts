@@ -12,11 +12,14 @@ const getWarehouses = async () => {
     return response.data.warehouses;
 }
 
-// const getWarehouseSchema = async (warehouseName: string) => {
-    // const response = await axios.get(`http://localhost:8000/v1/warehouses/${warehouseName}/schema`);
+const getWarehouseSchema = async (warehouseName: string) => {
+    const response = await axios.get(`http://0.0.0.0:8000/v1/warehouses/${warehouseName}/schema`);
 
+    return response.data;
+}
 
 export {
     getItemsFromWarehouse,
-    getWarehouses
+    getWarehouses,
+    getWarehouseSchema
 };

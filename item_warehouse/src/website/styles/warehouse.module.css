@@ -1,0 +1,9 @@
+.cell {
+    max-height: 5em;
+    overflow-y: scroll;
+    max-width: 500px;
+}
+
+.container {
+    overflow-x: scroll;
+}

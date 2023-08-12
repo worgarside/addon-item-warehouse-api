@@ -103,6 +103,12 @@ MissingTypeArgumentError = _http_exception_factory(
     },
 )
 
+TooManyResultsError = _http_exception_factory(
+    "TooManyResultsError",
+    status.HTTP_500_INTERNAL_SERVER_ERROR,
+    "Too many results returned from database query: 1 expected, {} found",
+)
+
 UniqueConstraintError = _http_exception_factory(
     "UniqueConstraintError",
     status.HTTP_400_BAD_REQUEST,

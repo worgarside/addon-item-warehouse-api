@@ -12,8 +12,10 @@ from exceptions import (
     ItemExistsError,
     ItemNotFoundError,
     ItemSchemaNotFoundError,
+    TooManyResultsError,
     WarehouseNotFoundError,
 )
+from fastapi import HTTPException, status
 from models import ItemPage, Warehouse, WarehousePage
 from schemas import ItemBase, ItemResponse, ItemSchema, QueryParamType, WarehouseCreate
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -162,40 +164,73 @@ def update_warehouse(
 
 
 @overload
-def get_item_schema(
-    db: Session, /, item_name: str, *, no_exist_ok: Literal[False] = False
+def get_schema(
+    db: Session,
+    /,
+    *,
+    item_name: str | None = ...,
+    warehouse_name: str | None = ...,
+    no_exist_ok: Literal[False] = False,
 ) -> ItemSchema:
     ...
 
 
 @overload
-def get_item_schema(
-    db: Session, /, item_name: str, *, no_exist_ok: Literal[True] = True
+def get_schema(
+    db: Session,
+    /,
+    *,
+    item_name: str | None = ...,
+    warehouse_name: str | None = ...,
+    no_exist_ok: Literal[True] = True,
 ) -> ItemSchema | None:
     ...
 
 
-def get_item_schema(
-    db: Session, /, item_name: str, *, no_exist_ok: bool = False
+def get_schema(
+    db: Session,
+    /,
+    *,
+    item_name: str | None = None,
+    warehouse_name: str | None = None,
+    no_exist_ok: bool = False,
 ) -> ItemSchema | None:
     """Get an item's schema."""
 
-    if (
-        results := db.query(Warehouse.item_schema)
-        .filter(Warehouse.item_name == item_name)
-        .first()
-    ) is None:
+    if item_name is None and warehouse_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either item_name or warehouse_name must be provided.",
+        )
+
+    query = db.query(Warehouse.item_schema)
+
+    if item_name is not None:
+        query = query.filter(Warehouse.item_name == item_name)
+
+    if warehouse_name is not None:
+        query = query.filter(Warehouse.name == warehouse_name)
+
+    if not (results := query.all()):
         if no_exist_ok:
             return None
 
-        raise ItemSchemaNotFoundError(item_name)
+        raise ItemSchemaNotFoundError(warehouse_name)
 
-    return results[0]
+    if len(results) > 1:
+        raise TooManyResultsError(len(results))
+
+    return results[0][0]
 
 
 def get_item_schemas(db: Session, /) -> dict[str, ItemSchema]:
     """Get a list of items and their schemas."""
     return dict(db.query(Warehouse.item_name, Warehouse.item_schema))
+
+
+def get_warehouse_schemas(db: Session, /) -> dict[str, ItemSchema]:
+    """Get a list of warehouses and their schemas."""
+    return dict(db.query(Warehouse.name, Warehouse.item_schema))
 
 
 # Item Operations
