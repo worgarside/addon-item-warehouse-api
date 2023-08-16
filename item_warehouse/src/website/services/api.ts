@@ -64,3 +64,4 @@ const getWarehouseSchema = async (
 };
 
 export { getItemsFromWarehouse, getWarehouses, getWarehouseSchema };
+export type { ItemsResponse };

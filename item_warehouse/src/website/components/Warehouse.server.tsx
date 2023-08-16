@@ -1,14 +1,19 @@
 import React from "react";
-import { getItemsFromWarehouse, getWarehouseSchema } from "../services/api";
+import {
+  ItemsResponse,
+  getItemsFromWarehouse,
+  getWarehouseSchema,
+} from "../services/api";
 import styles from "../styles/Warehouse.module.css";
 import Item from "./Item.client";
 
 const Warehouse: React.FC<{ warehouseName: string }> = async ({
   warehouseName,
 }) => {
-  let items = [];
+  let item_page: ItemsResponse;
+
   try {
-    items = await getItemsFromWarehouse(warehouseName);
+    item_page = await getItemsFromWarehouse(warehouseName);
   } catch (error) {
     return (
       <div className="alert alert-danger" role="alert">
@@ -40,9 +45,11 @@ const Warehouse: React.FC<{ warehouseName: string }> = async ({
             </tr>
           </thead>
           <tbody>
-            {items.map((item: Record<string, ItemValue>, index: number) => (
-              <Item item={item} key={index} index={index} />
-            ))}
+            {item_page.items.map(
+              (item: Record<string, ItemValue>, index: number) => (
+                <Item item={item} key={index} index={index} />
+              ),
+            )}
           </tbody>
         </table>
       </div>

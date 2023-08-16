@@ -10,7 +10,7 @@ const Item: React.FC<ItemProps> = ({ item, index }) => {
   return (
     <tr key={index}>
       {Object.entries(item).map(([key, value]) => (
-        <Cell content={value.toString()} header={key} />
+        <Cell content={String(value)} header={key} />
       ))}
     </tr>
   );
