@@ -353,6 +353,6 @@ urllib3==2.0.3 ; python_version >= "3.11" and python_version < "4.0" \
 uvicorn==0.23.2 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:1f9be6558f01239d4fdf22ef8126c39cb1ad0addf76c40e760549d2c2f43ab53 \
     --hash=sha256:4d3cc12d7727ba72b64d12d3cc7743124074c0a69f7b201512fc50c3e3f1569a
-wg-utilities==3.11.3 ; python_version >= "3.11" and python_version < "4.0" \
-    --hash=sha256:7ca1266c8d9018f4aa05b2b2907f7687c3069393fcf55dfb89f5da1cba68cff6 \
-    --hash=sha256:cb06ded2f26ca5a4effd4c1fbe57ae41308ff6db9203392cee57883eff377511
+wg-utilities==4.0.0 ; python_version >= "3.11" and python_version < "4.0" \
+    --hash=sha256:9ba6bfa0e2a80662120b358d2523d722761bd2fa9b4d6f7981ffe5702076413a \
+    --hash=sha256:bdad471807aa1a2a27d276b7ca9d3adab731841fc5524f4b35356b4f87e6a53a
