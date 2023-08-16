@@ -264,6 +264,8 @@ def update_warehouse(
 
 # Warehouse Schema Endpoints
 
+# TODO add missing endpoints
+
 
 @app.get(
     "/v1/warehouses/{warehouse_name}/schema",

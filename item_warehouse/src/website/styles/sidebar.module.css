@@ -1,5 +1,4 @@
-
 .sidebar {
-  background-color: rgb(240, 240, 240);
+  background-color: var(--bs-secondary-bg);
   width: 250px;
 }
