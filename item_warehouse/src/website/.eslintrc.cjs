@@ -17,4 +17,7 @@ module.exports = {
     "no-unused-vars": "error",
   },
   root: true,
+  env: {
+    node: true,
+  },
 };
