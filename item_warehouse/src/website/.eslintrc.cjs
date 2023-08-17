@@ -2,9 +2,9 @@
 module.exports = {
   extends: [
     "eslint:recommended",
-    "prettier",
     "plugin:@typescript-eslint/strict-type-checked",
     "plugin:@typescript-eslint/stylistic-type-checked",
+    "prettier",
   ],
   plugins: ["@typescript-eslint", "import"],
   parser: "@typescript-eslint/parser",
