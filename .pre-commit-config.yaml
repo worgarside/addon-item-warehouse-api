@@ -166,6 +166,8 @@ repos:
         additional_dependencies:
           - '@typescript-eslint/parser'
           - '@typescript-eslint/eslint-plugin'
+          - eslint-plugin-prettier@latest
           - eslint
           - typescript
+          - eslint-config-prettier
           - prettier
