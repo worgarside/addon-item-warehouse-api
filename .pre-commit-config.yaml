@@ -167,6 +167,7 @@ repos:
           - '@typescript-eslint/parser'
           - '@typescript-eslint/eslint-plugin'
           - eslint-plugin-prettier@latest
+          - eslint-plugin-import@latest
           - eslint
           - typescript
           - eslint-config-prettier
