@@ -135,12 +135,12 @@ def get_warehouses(
         raise
 
     limit = limit or total
-    next_offset = offset + limit
 
     return WarehousePage(
         count=len(warehouses),
         warehouses=warehouses,
-        next_offset=next_offset if next_offset < total else None,
+        max_page=total // limit,
+        page=(offset // limit) + 1,
         total=total,
     )
 
@@ -426,12 +426,11 @@ def get_items(
 
     total = get_item_count(db, warehouse_name)
 
-    next_offset = offset + limit
-
     return ItemPage(
         count=len(items),
         items=items,
-        next_offset=next_offset if next_offset < total else None,
+        max_page=total // limit,
+        page=(offset // limit) + 1,
         total=total,
     )
 

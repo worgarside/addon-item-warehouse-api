@@ -243,13 +243,13 @@ def get_warehouse(
     response_model_exclude_unset=True,
 )
 def get_warehouses(
-    offset: Annotated[int, Query(ge=0)] = 0,
-    limit: Annotated[int, Query(gt=0, le=100)] = 100,
+    page: Annotated[int, Query(ge=0)] = 0,
+    page_size: Annotated[int, Query(gt=0, le=100)] = 100,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> WarehousePage:
     """List warehouses."""
 
-    return crud.get_warehouses(db, offset=offset, limit=limit)
+    return crud.get_warehouses(db, offset=page * page_size, limit=page_size)
 
 
 @app.put("/v1/warehouses/{warehouse_name}", tags=[ApiTag.WAREHOUSE])
@@ -360,8 +360,8 @@ def delete_item(
 def get_items(
     request: Request,
     warehouse_name: SqlStrPath,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    limit: Annotated[int, Query(gt=0, le=100)] = 100,
+    page: Annotated[int, Query(ge=0)] = 0,
+    page_size: Annotated[int, Query(gt=0, le=100)] = 100,
     fields: Annotated[
         str,
         Query(
@@ -378,14 +378,14 @@ def get_items(
 
     field_names = fields.split(",") if fields else None
     search_params = {
-        k: v for k, v in request.query_params.items() if k not in ("offset", "limit")
+        k: v for k, v in request.query_params.items() if k not in ("page", "page_size")
     }
 
     return crud.get_items(
         db,
         warehouse_name,
-        offset=offset,
-        limit=limit,
+        offset=(page - 1) * page_size,
+        limit=page_size,
         field_names=field_names,
         search_params=search_params,
     )

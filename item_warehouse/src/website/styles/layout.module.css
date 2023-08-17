@@ -6,6 +6,7 @@
 
 .content {
   flex: 1;
+  overflow-x: scroll;
   background-color: var(--bs-body-bg);
   padding: 10px 20px;
 }

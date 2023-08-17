@@ -1,5 +1,13 @@
-import Warehouse from "../../../components/Warehouse.server";
+import WarehousePage from "../../../components/WarehousePage.server";
 
-export default function Page({ params }: { params: { warehouse: string } }) {
-  return <Warehouse warehouseName={params.warehouse} />;
+export default function Page({
+  params,
+  searchParams,
+}: {
+  params: { warehouse: string };
+  searchParams: { page: string };
+}) {
+  return (
+    <WarehousePage warehouseName={params.warehouse} page={searchParams.page} />
+  );
 }

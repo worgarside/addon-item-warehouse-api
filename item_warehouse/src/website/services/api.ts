@@ -1,10 +1,10 @@
 import axios from "axios";
 
-type ItemValue = string | number | boolean;
+type ItemValue = string | number | boolean | null;
 
 interface ItemsResponse {
   count: number;
-  next_offset: number;
+  page: number;
   total: number;
   items: Record<string, ItemValue>[];
 }
@@ -30,16 +30,28 @@ interface Warehouse {
 
 interface WarehousesResponse {
   count: number;
-  next_offset: number;
+  page: number;
   total: number;
   warehouses: Warehouse[];
 }
 
 const getItemsFromWarehouse = async (
   warehouseName: string,
+  count: string,
+  pageNumber: string,
 ): Promise<ItemsResponse> => {
   const response = await axios.get<ItemsResponse>(
-    `http://0.0.0.0:8000/v1/warehouses/${warehouseName}/items?limit=10`,
+    `http://0.0.0.0:8000/v1/warehouses/${warehouseName}/items?page_size=${count}&page=${
+      pageNumber || 1
+    }`,
+  );
+
+  return response.data;
+};
+
+const getWarehouse = async (warehouseName: string): Promise<Warehouse> => {
+  const response = await axios.get<Warehouse>(
+    `http://0.0.0.0:8000/v1/warehouses/${warehouseName}`,
   );
 
   return response.data;
@@ -63,5 +75,10 @@ const getWarehouseSchema = async (
   return response.data;
 };
 
-export { getItemsFromWarehouse, getWarehouses, getWarehouseSchema };
+export {
+  getItemsFromWarehouse,
+  getWarehouse,
+  getWarehouses,
+  getWarehouseSchema,
+};
 export type { ItemsResponse };

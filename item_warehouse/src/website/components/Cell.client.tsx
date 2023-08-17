@@ -6,21 +6,31 @@ import styles from "../styles/Cell.module.css";
 
 import FullContentModal from "./FullContentModal.client";
 
-const Cell: React.FC<{ content: string; header: string }> = ({
-  content,
-  header,
-}) => {
+const Cell: React.FC<{
+  value: boolean | number | string | null;
+  header: string;
+}> = ({ value, header }) => {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const cellRef = useRef<HTMLDivElement | null>(null);
+
+  let content_string: string;
+
+  if (value === null) {
+    content_string = "null";
+  } else {
+    content_string = String(value);
+  }
 
   useEffect(() => {
     if (cellRef.current) {
       const element = cellRef.current;
       if (element.scrollHeight > element.clientHeight) {
         setIsOverflowing(true);
+      } else {
+        setIsOverflowing(false);
       }
     }
-  }, []);
+  }, [content_string]);
 
   return (
     <td key={header} className={styles.cell}>
@@ -29,13 +39,23 @@ const Cell: React.FC<{ content: string; header: string }> = ({
           <>
             <div className={styles.scrollable}>
               <pre>
-                <code>{content}</code>
+                <code
+                  className={
+                    content_string == "null" ? "text-muted" : styles.code
+                  }
+                >
+                  {content_string}
+                </code>
               </pre>
             </div>
-            <FullContentModal content={content} header={header} />
+            <FullContentModal content={content_string} header={header} />
           </>
         ) : (
-          <code>{content}</code>
+          <code
+            className={content_string == "null" ? "text-muted" : styles.code}
+          >
+            {content_string}
+          </code>
         )}
       </div>
     </td>

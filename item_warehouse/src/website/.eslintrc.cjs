@@ -12,10 +12,6 @@ module.exports = {
     project: true,
     tsconfigRootDir: __dirname,
   },
-  rules: {
-    // "import/no-unused-modules": [1, { unusedExports: true }],
-    "no-unused-vars": "error",
-  },
   root: true,
   env: {
     node: true,

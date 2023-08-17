@@ -12,3 +12,7 @@ td.cell {
   overflow-y: auto;
   height: 4em;
 }
+
+.code {
+  color: var(--bs-dark);
+}

@@ -276,7 +276,8 @@ class _Page(BaseModel):
     """A paginated response."""
 
     count: int
-    next_offset: int | None = None
+    max_page: int
+    page: int
     total: int
 
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
@@ -299,33 +300,35 @@ class ItemPage(_Page):
     def empty(cls) -> ItemPage:
         """Create an empty page."""
 
-        return cls(count=0, total=0, items=[])
+        return cls(count=0, total=0, max_page=0, page=0, items=[])
 
 
 class SchemaPage(_Page):
     """A paginated response of schemas."""
 
     schemas: list[WarehouseSchema]
+
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
 
     @classmethod
     def empty(cls) -> SchemaPage:
         """Create an empty page."""
 
-        return cls(count=0, total=0, schemas=[])
+        return cls(count=0, total=0, max_page=0, page=0, schemas=[])
 
 
 class WarehousePage(_Page):
     """A paginated response of warehouses."""
 
     warehouses: list[Warehouse]
+
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
 
     @classmethod
     def empty(cls) -> WarehousePage:
         """Create an empty page."""
 
-        return cls(count=0, total=0, warehouses=[])
+        return cls(count=0, total=0, max_page=0, page=0, warehouses=[])
 
     @field_serializer("warehouses", when_used="json")
     def serialize_warehouses(
