@@ -5,6 +5,7 @@
 .DS_store
 *.pyc
 *.csv
+*.json
 *.xlsx
 *.xlsm
 *.docx
@@ -16,6 +17,7 @@
 test.py
 !requirements*.txt
 .aws-sam
+*.html
 .google_maps_location_sharing.cookies.*_com
 sandbox
 addons/**/.ssh
@@ -275,39 +277,3 @@ fabric.properties
 !cdk.json
 
 *.db
-
-# Next.js
-
-# dependencies
-node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# next.js
-.next
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
