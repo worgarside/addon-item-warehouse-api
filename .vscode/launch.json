@@ -10,7 +10,7 @@
       "request": "launch",
       "program": "${file}",
       "console": "integratedTerminal",
-      "envFile": "${workspaceFolder}/item_warehouse/.env",
+      "envFile": "${workspaceFolder}/item_warehouse_api/.env",
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }

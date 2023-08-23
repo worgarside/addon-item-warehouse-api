@@ -2,7 +2,7 @@ clean:
 	find . \( -name "node_modules" -o -name "build" -o -name "dist" -o -name ".next" \) -type d -exec rm -rf {} +
 
 pynguin-%:
-	@cd item_warehouse/src/app && \
+	@cd item_warehouse_api/src && \
 	DATABASE_URL=sqlite:///./pynguin.db \
 	PYNGUIN_DANGER_AWARE=1 \
 	pynguin -v \
@@ -14,7 +14,7 @@ pynguin-%:
 
 api:
 	clear
-	@cd item_warehouse/src/api/ && \
+	@cd item_warehouse_api/src && \
 	poetry run uvicorn main:app --reload --env-file ../../.env
 
 api-clean:
@@ -23,7 +23,7 @@ api-clean:
 	make api
 
 docker:
-	@cd item_warehouse && \
+	@cd item_warehouse_api && \
 	docker-compose --verbose up --build
 
 install:
