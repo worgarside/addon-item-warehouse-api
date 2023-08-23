@@ -1,7 +1,6 @@
 clean:
 	find . \( -name "node_modules" -o -name "build" -o -name "dist" -o -name ".next" \) -type d -exec rm -rf {} +
 
-
 pynguin-%:
 	@cd item_warehouse/src/app && \
 	DATABASE_URL=sqlite:///./pynguin.db \
@@ -28,23 +27,7 @@ docker:
 	docker-compose --verbose up --build
 
 install:
-	$(MAKE) install-api
-	$(MAKE) install-website
-
-install-api:
 	poetry install --all-extras --sync
-
-install-website:
-	@cd item_warehouse/src/website && \
-	npm install
-
-install-npm:
-	@cd item_warehouse/src/website && \
-	npm install $(filter-out $@,$(MAKECMDGOALS))
-
-website-local:
-	@cd item_warehouse/src/website && \
-	npm run dev
 
 # VSCode Shortcuts #
 
@@ -58,7 +41,8 @@ vscode-shortcut-3:
 	make docker
 
 vscode-shortcut-4:
-	make website-local
+	@echo "Shortcut not defined"
+	@exit 1
 
 vscode-shortcut-5:
 	@echo "Shortcut not defined"
