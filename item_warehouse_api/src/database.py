@@ -98,7 +98,7 @@ class _BaseExtra:
     ENGINE: ClassVar[Engine]
 
     def __init__(self, *_: Any, **__: Any) -> None:
-        raise NotImplementedError(  # noqa: TRY003
+        raise NotImplementedError(
             "Class _BaseExtra should not be instantiated by itself or as the primary"
             " base class for a model. Use `Base` instead."
         )

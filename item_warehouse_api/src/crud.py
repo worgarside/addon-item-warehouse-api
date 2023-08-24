@@ -155,9 +155,7 @@ def update_warehouse(
 
     _ = db, warehouse_name, warehouse
 
-    raise NotImplementedError(  # noqa: TRY003
-        "Updating warehouses is not yet implemented."
-    )
+    raise NotImplementedError("Updating warehouses is not yet implemented.")
 
 
 # Item Schema Operations
