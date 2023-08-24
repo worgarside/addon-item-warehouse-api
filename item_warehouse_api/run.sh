@@ -11,37 +11,37 @@ DATABASE_NAME_IN=$(bashio::config 'database_name')
 
 if [[ -z "${DATABASE_URL-}" ]]
 then
-    export DATABASE_URL=$DATABASE_URL_IN
+    export DATABASE_URL=${DATABASE_URL_IN}
 fi
 
 if [[ -z "${DATABASE_USERNAME-}" ]]
 then
-    export DATABASE_USERNAME=$DATABASE_USERNAME_IN
+    export DATABASE_USERNAME=${DATABASE_USERNAME_IN}
 fi
 
 if [[ -z "${DATABASE_PASSWORD-}" ]]
 then
-    export DATABASE_PASSWORD=$DATABASE_PASSWORD_IN
+    export DATABASE_PASSWORD=${DATABASE_PASSWORD_IN}
 fi
 
 if [[ -z "${DATABASE_DRIVER_NAME-}" ]]
 then
-    export DATABASE_DRIVER_NAME=$DATABASE_DRIVER_NAME_IN
+    export DATABASE_DRIVER_NAME=${DATABASE_DRIVER_NAME_IN}
 fi
 
 if [[ -z "${DATABASE_HOST-}" ]]
 then
-    export DATABASE_HOST=$DATABASE_HOST_IN
+    export DATABASE_HOST=${DATABASE_HOST_IN}
 fi
 
 if [[ -z "${DATABASE_PORT-}" ]]
 then
-    export DATABASE_PORT=$DATABASE_PORT_IN
+    export DATABASE_PORT=${DATABASE_PORT_IN}
 fi
 
 if [[ -z "${DATABASE_NAME-}" ]]
 then
-    export DATABASE_NAME=$DATABASE_NAME_IN
+    export DATABASE_NAME=${DATABASE_NAME_IN}
 fi
 
 

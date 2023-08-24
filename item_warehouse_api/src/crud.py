@@ -1,5 +1,7 @@
 """CRUD operations for the warehouse app."""
 
+from __future__ import annotations
+
 from json import dumps
 from logging import getLogger
 from typing import TYPE_CHECKING, Literal, overload
@@ -10,10 +12,11 @@ from exceptions import (
     ItemExistsError,
     ItemNotFoundError,
     ItemSchemaNotFoundError,
+    TooManyResultsError,
     WarehouseNotFoundError,
 )
-from models import Page
-from models import Warehouse as WarehouseModel
+from fastapi import HTTPException, status
+from models import ItemPage, Warehouse, WarehousePage
 from schemas import ItemBase, ItemResponse, ItemSchema, QueryParamType, WarehouseCreate
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Query, Session
@@ -34,11 +37,9 @@ add_stream_handler(LOGGER)
 # Warehouse Operations
 
 
-def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> WarehouseModel:
+def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> Warehouse:
     """Create a warehouse."""
-    db_warehouse = WarehouseModel(
-        **warehouse.model_dump(exclude_unset=True, by_alias=True)
-    )
+    db_warehouse = Warehouse(**warehouse.model_dump(exclude_unset=True, by_alias=True))
 
     db_warehouse.intialise_warehouse()
 
@@ -59,7 +60,7 @@ def delete_warehouse(db: Session, /, warehouse_name: str) -> None:
 
     warehouse.drop(no_exist_ok=True)
 
-    db.query(WarehouseModel).filter(WarehouseModel.name == warehouse_name).delete()
+    db.query(Warehouse).filter(Warehouse.name == warehouse_name).delete()
 
     db.commit()
 
@@ -67,26 +68,24 @@ def delete_warehouse(db: Session, /, warehouse_name: str) -> None:
 @overload
 def get_warehouse(
     db: Session, /, name: str, *, no_exist_ok: Literal[False] = False
-) -> WarehouseModel:
+) -> Warehouse:
     ...
 
 
 @overload
 def get_warehouse(
     db: Session, /, name: str, *, no_exist_ok: Literal[True] = True
-) -> WarehouseModel | None:
+) -> Warehouse | None:
     ...
 
 
 def get_warehouse(
     db: Session, /, name: str, *, no_exist_ok: bool = False
-) -> WarehouseModel | None:
+) -> Warehouse | None:
     """Get a warehouse by its name."""
 
     if (
-        warehouse := db.query(WarehouseModel)
-        .filter(WarehouseModel.name == name)
-        .first()
+        warehouse := db.query(Warehouse).filter(Warehouse.name == name).first()
     ) is None:
         if no_exist_ok:
             return None
@@ -102,7 +101,7 @@ def get_warehouses(
     offset: int = 0,
     limit: int | None = None,
     allow_no_warehouse_table: bool = False,
-) -> Page[WarehouseModel]:
+) -> WarehousePage:
     """Get a list of warehouses.
 
     Args:
@@ -115,33 +114,33 @@ def get_warehouses(
             thrown because there is no `warehouse` table. Defaults to False.
 
     Returns:
-        list[WarehouseModel]: A list of warehouses.
+        list[Warehouse]: A list of warehouses.
     """
 
     try:
-        query = db.query(WarehouseModel).offset(offset)
+        query = db.query(Warehouse).offset(offset)
 
         if limit is not None:
             query = query.limit(limit)
 
-        items = query.all()
-        total = db.query(WarehouseModel).count()
+        warehouses = query.all()
+        total = db.query(Warehouse).count()
     except OperationalError as exc:
         if (
             allow_no_warehouse_table
-            and f"no such table: {WarehouseModel.__tablename__}" in str(exc)
+            and f"no such table: {Warehouse.__tablename__}" in str(exc)
         ):
-            return Page.empty()
+            return WarehousePage.empty()
 
         raise
 
     limit = limit or total
-    next_offset = offset + limit
 
-    return Page[WarehouseModel](
-        count=len(items),
-        items=items,
-        next_offset=next_offset if next_offset < total else None,
+    return WarehousePage(
+        count=len(warehouses),
+        warehouses=warehouses,
+        max_page=total // limit,
+        page=(offset // limit) + 1,
         total=total,
     )
 
@@ -151,54 +150,85 @@ def update_warehouse(
     /,
     warehouse_name: str,
     warehouse: WarehouseCreate,
-) -> WarehouseModel:
+) -> Warehouse:
     """Update a warehouse."""
 
     _ = db, warehouse_name, warehouse
 
-    raise NotImplementedError(  # noqa: TRY003
-        "Updating warehouses is not yet implemented."
-    )
+    raise NotImplementedError("Updating warehouses is not yet implemented.")
 
 
 # Item Schema Operations
 
 
 @overload
-def get_item_schema(
-    db: Session, /, item_name: str, *, no_exist_ok: Literal[False] = False
+def get_schema(
+    db: Session,
+    /,
+    *,
+    item_name: str | None = ...,
+    warehouse_name: str | None = ...,
+    no_exist_ok: Literal[False] = False,
 ) -> ItemSchema:
     ...
 
 
 @overload
-def get_item_schema(
-    db: Session, /, item_name: str, *, no_exist_ok: Literal[True] = True
+def get_schema(
+    db: Session,
+    /,
+    *,
+    item_name: str | None = ...,
+    warehouse_name: str | None = ...,
+    no_exist_ok: Literal[True] = True,
 ) -> ItemSchema | None:
     ...
 
 
-def get_item_schema(
-    db: Session, /, item_name: str, *, no_exist_ok: bool = False
+def get_schema(
+    db: Session,
+    /,
+    *,
+    item_name: str | None = None,
+    warehouse_name: str | None = None,
+    no_exist_ok: bool = False,
 ) -> ItemSchema | None:
     """Get an item's schema."""
 
-    if (
-        results := db.query(WarehouseModel.item_schema)
-        .filter(WarehouseModel.item_name == item_name)
-        .first()
-    ) is None:
+    if item_name is None and warehouse_name is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either item_name or warehouse_name must be provided.",
+        )
+
+    query = db.query(Warehouse.item_schema)
+
+    if item_name is not None:
+        query = query.filter(Warehouse.item_name == item_name)
+
+    if warehouse_name is not None:
+        query = query.filter(Warehouse.name == warehouse_name)
+
+    if not (results := query.all()):
         if no_exist_ok:
             return None
 
-        raise ItemSchemaNotFoundError(item_name)
+        raise ItemSchemaNotFoundError(warehouse_name)
 
-    return results[0]
+    if len(results) > 1:
+        raise TooManyResultsError(len(results))
+
+    return results[0][0]
 
 
 def get_item_schemas(db: Session, /) -> dict[str, ItemSchema]:
     """Get a list of items and their schemas."""
-    return dict(db.query(WarehouseModel.item_name, WarehouseModel.item_schema))
+    return dict(db.query(Warehouse.item_name, Warehouse.item_schema))
+
+
+def get_warehouse_schemas(db: Session, /) -> dict[str, ItemSchema]:
+    """Get a list of warehouses and their schemas."""
+    return dict(db.query(Warehouse.name, Warehouse.item_schema))
 
 
 # Item Operations
@@ -331,7 +361,7 @@ def get_items(
     search_params: QueryParamType,
     offset: int = 0,
     limit: int = 100,
-) -> Page[GeneralItemModelType] | GeneralItemModelType:
+) -> ItemPage | GeneralItemModelType:
     # pylint: disable=too-many-locals
     """Get a list of items in a warehouse.
 
@@ -366,7 +396,7 @@ def get_items(
         )
 
     if not field_names:
-        query: Query[WarehouseModel] = db.query(warehouse.item_model)
+        query: Query[Warehouse] = db.query(warehouse.item_model)
     else:
         field_names = sorted(field_names)
 
@@ -386,18 +416,19 @@ def get_items(
     results = query.offset(offset).limit(limit).all()
 
     if field_names:
-        items = [dict(zip(field_names, row, strict=True)) for row in results]
+        items: list[GeneralItemModelType] = [
+            dict(zip(field_names, row, strict=True)) for row in results
+        ]
     else:
         items = [row.as_dict() for row in results]
 
     total = get_item_count(db, warehouse_name)
 
-    next_offset = offset + limit
-
-    return Page[GeneralItemModelType](
+    return ItemPage(
         count=len(items),
         items=items,
-        next_offset=next_offset if next_offset < total else None,
+        max_page=total // limit,
+        page=(offset // limit) + 1,
         total=total,
     )
 

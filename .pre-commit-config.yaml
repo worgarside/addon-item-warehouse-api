@@ -1,7 +1,7 @@
 ---
 repos:
   - repo: https://github.com/python-poetry/poetry
-    rev: 1.5.0
+    rev: 1.6.0
     hooks:
       - id: poetry-check
       - id: poetry-export
@@ -9,7 +9,7 @@ repos:
           - -f
           - requirements.txt
           - -o
-          - item_warehouse/src/requirements.txt
+          - item_warehouse_api/src/requirements.txt
 
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.10.1
@@ -25,7 +25,7 @@ repos:
         language_version: python3.11
 
   - repo: https://github.com/asottile/blacken-docs
-    rev: 1.15.0
+    rev: 1.16.0
     hooks:
       - id: blacken-docs
 
@@ -56,6 +56,9 @@ repos:
     hooks:
       - id: isort
         name: isort (python)
+        args:
+          - -a
+          - from __future__ import annotations
 
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
@@ -81,14 +84,14 @@ repos:
           - --strict
 
   - repo: https://github.com/hadialqattan/pycln
-    rev: v2.2.0
+    rev: v2.2.2
     hooks:
       - id: pycln
         args:
           - --all
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.4.1
+    rev: v1.5.1
     hooks:
       - id: mypy
         args:
@@ -137,6 +140,6 @@ repos:
           - '*.svg,*.json'
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.0.281
+    rev: v0.0.285
     hooks:
       - id: ruff

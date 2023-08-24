@@ -1,14 +1,15 @@
 """SQLAlchemy models for item_warehouse."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime
 from json import dumps
 from logging import getLogger
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, Self
 
 from database import Base
 from exceptions import DuplicateFieldError, InvalidFieldsError, WarehouseNotFoundError
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
 from schemas import (
     DefaultFunctionType,
     GeneralItemModelType,
@@ -271,23 +272,68 @@ class Warehouse(Base):  # type: ignore[misc]
         return tuple(pk.name for pk in inspect(self.item_model).primary_key)
 
 
-PageItem = TypeVar(
-    "PageItem", bound=GeneralItemModelType | ItemResponse | Warehouse | WarehouseSchema
-)
-
-
-class Page(BaseModel, Generic[PageItem]):
-    """A page of results."""
+class _Page(BaseModel):
+    """A paginated response."""
 
     count: int
-    items: list[PageItem]
-    next_offset: int | None = None
+    max_page: int
+    page: int
     total: int
 
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
 
     @classmethod
-    def empty(cls) -> Page[PageItem]:
+    def empty(cls) -> Self:
         """Create an empty page."""
 
-        return cls(count=0, items=[], total=0)
+        raise NotImplementedError
+
+
+class ItemPage(_Page):
+    """A paginated response of items."""
+
+    items: Sequence[GeneralItemModelType] | Sequence[ItemResponse]
+
+    model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
+
+    @classmethod
+    def empty(cls) -> ItemPage:
+        """Create an empty page."""
+
+        return cls(count=0, total=0, max_page=0, page=0, items=[])
+
+
+class SchemaPage(_Page):
+    """A paginated response of schemas."""
+
+    schemas: list[WarehouseSchema]
+
+    model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
+
+    @classmethod
+    def empty(cls) -> SchemaPage:
+        """Create an empty page."""
+
+        return cls(count=0, total=0, max_page=0, page=0, schemas=[])
+
+
+class WarehousePage(_Page):
+    """A paginated response of warehouses."""
+
+    warehouses: list[Warehouse]
+
+    model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
+
+    @classmethod
+    def empty(cls) -> WarehousePage:
+        """Create an empty page."""
+
+        return cls(count=0, total=0, max_page=0, page=0, warehouses=[])
+
+    @field_serializer("warehouses", when_used="json")
+    def serialize_warehouses(
+        self, warehouses: list[Warehouse]
+    ) -> list[WarehouseSchema]:
+        """Serialize warehouses to schemas."""
+
+        return [WarehouseSchema.model_validate(warehouse) for warehouse in warehouses]

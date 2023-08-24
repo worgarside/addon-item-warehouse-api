@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "addon-item-warehouse"
-version = "1.0.3"
+name = "addon-item-warehouse-api"
+version = "2.0.0"
 description = "Home Assistant add-on for interacting with items in a database via an API"
 authors = ["Will Garside <worgarside@gmail.com>"]
 license = "MIT"
@@ -8,11 +8,11 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-fastapi = "^0.100.1"
-sqlalchemy = "^2.0.19"
+fastapi = "^0.101.1"
+sqlalchemy = "^2.0.20"
 python-dotenv = "^1.0.0"
 pymysql = "^1.1.0"
-wg-utilities = "^3.7.0"
+wg-utilities = {extras = ["clients"], version = "^4.0.0"}
 requests = "^2.31.0"
 pytz = "^2023.3"
 bidict = "^0.22.1"
@@ -50,7 +50,7 @@ disallow_any_generics = true
 check_untyped_defs = true
 no_implicit_reexport = true
 disallow_untyped_defs = true
-mypy_path = "item_warehouse/src/app"
+mypy_path = "item_warehouse_api/src"
 plugins = ["pydantic.mypy", "sqlmypy"]
 
 [tool.pydantic-mypy]
