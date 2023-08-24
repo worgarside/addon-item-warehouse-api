@@ -12,7 +12,7 @@ fastapi = "^0.101.1"
 sqlalchemy = "^2.0.20"
 python-dotenv = "^1.0.0"
 pymysql = "^1.1.0"
-wg-utilities = "^3.11.3"
+wg-utilities = {extras = ["clients"], version = "^4.0.0"}
 requests = "^2.31.0"
 pytz = "^2023.3"
 bidict = "^0.22.1"
@@ -50,7 +50,7 @@ disallow_any_generics = true
 check_untyped_defs = true
 no_implicit_reexport = true
 disallow_untyped_defs = true
-mypy_path = "item_warehouse/src/app"
+mypy_path = "item_warehouse_api/src"
 plugins = ["pydantic.mypy", "sqlmypy"]
 
 [tool.pydantic-mypy]

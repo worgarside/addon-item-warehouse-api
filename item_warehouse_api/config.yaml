@@ -1,8 +1,8 @@
 ---
-name: Item Warehouse
+name: 'Item Warehouse: API'
 description: A warehouse with an API on the front of it
 version: 1.0.3
-slug: item_warehouse
+slug: item_warehouse_api
 init: false
 arch:
   - aarch64

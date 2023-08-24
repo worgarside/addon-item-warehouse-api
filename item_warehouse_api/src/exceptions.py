@@ -1,6 +1,8 @@
 """Custom exceptions for the application."""
 
 
+from __future__ import annotations
+
 from abc import ABC
 from collections.abc import Callable
 from json import dumps
@@ -99,6 +101,12 @@ MissingTypeArgumentError = _http_exception_factory(
         f" be due to the database driver value: {environ['DATABASE_DRIVER_NAME']}",
         "field_config": args[2],
     },
+)
+
+TooManyResultsError = _http_exception_factory(
+    "TooManyResultsError",
+    status.HTTP_500_INTERNAL_SERVER_ERROR,
+    "Too many results returned from database query: 1 expected, {} found",
 )
 
 UniqueConstraintError = _http_exception_factory(

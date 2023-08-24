@@ -14,7 +14,7 @@ except ImportError:
     from enum import auto  # noqa: I001
     from strenum import StrEnum  # type: ignore[import,no-redef]
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator  # noqa: I001
 from contextlib import asynccontextmanager
 from json import dumps
 from logging import getLogger
@@ -26,10 +26,12 @@ from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
 from exceptions import ItemSchemaExistsError, WarehouseExistsError
 from fastapi import Body, Depends, FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Path, Query
 from fastapi.responses import JSONResponse
-from models import Page
+from models import ItemPage
 from models import Warehouse as WarehouseModel
+from models import WarehousePage
 from pydantic import ValidationError
 from schemas import (
     GeneralItemModelType,
@@ -78,7 +80,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         for warehouse in crud.get_warehouses(
             db,
             allow_no_warehouse_table=True,
-        ).items:
+        ).warehouses:
             # Just accessing the item_model property will create the SQLAlchemy model.
             __ = warehouse.item_model
             ___ = warehouse.item_schema_class
@@ -107,6 +109,14 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(RequestValidationError)
@@ -193,7 +203,7 @@ def create_warehouse(
     ) is not None:
         raise WarehouseExistsError(db_warehouse)
 
-    if crud.get_item_schema(db, warehouse.item_name, no_exist_ok=True) is not None:
+    if crud.get_schema(db, item_name=warehouse.item_name, no_exist_ok=True) is not None:
         raise ItemSchemaExistsError(warehouse.item_name)
 
     return crud.create_warehouse(db, warehouse)
@@ -228,18 +238,18 @@ def get_warehouse(
 
 @app.get(
     "/v1/warehouses",
-    response_model=Page[Warehouse],
+    response_model=WarehousePage,
     tags=[ApiTag.PAGINATED, ApiTag.WAREHOUSE],
     response_model_exclude_unset=True,
 )
 def get_warehouses(
-    offset: Annotated[int, Query(ge=0)] = 0,
-    limit: Annotated[int, Query(gt=0, le=100)] = 100,
+    page: Annotated[int, Query(ge=0)] = 0,
+    page_size: Annotated[int, Query(gt=0, le=100)] = 100,
     db: Session = Depends(get_db),  # noqa: B008
-) -> Page[WarehouseModel]:
+) -> WarehousePage:
     """List warehouses."""
 
-    return crud.get_warehouses(db, offset=offset, limit=limit)
+    return crud.get_warehouses(db, offset=page * page_size, limit=page_size)
 
 
 @app.put("/v1/warehouses/{warehouse_name}", tags=[ApiTag.WAREHOUSE])
@@ -252,20 +262,22 @@ def update_warehouse(
     return crud.update_warehouse(db, warehouse_name, warehouse)
 
 
-# Item Schema Endpoints
+# Warehouse Schema Endpoints
+
+# TODO add missing endpoints
 
 
 @app.get(
-    "/v1/items/{item_name}/schema/",
+    "/v1/warehouses/{warehouse_name}/schema",
     response_model=ItemSchema,
     tags=[ApiTag.ITEM_SCHEMA],
     response_model_exclude_unset=True,
 )
 def get_item_schema(
-    item_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
+    warehouse_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
 ) -> ItemSchema:
-    """Get an item's schema."""
-    return crud.get_item_schema(db, item_name)
+    """Get an warehouse's/item's schema."""
+    return crud.get_schema(db, warehouse_name=warehouse_name)
 
 
 @app.get(
@@ -342,14 +354,14 @@ def delete_item(
 
 @app.get(
     "/v1/warehouses/{warehouse_name}/items",
-    response_model=Page[ItemResponse] | ItemResponse,
+    response_model=ItemPage | ItemResponse,
     tags=[ApiTag.ITEM, ApiTag.PAGINATED],
 )
 def get_items(
     request: Request,
     warehouse_name: SqlStrPath,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    limit: Annotated[int, Query(gt=0, le=100)] = 100,
+    page: Annotated[int, Query(ge=0)] = 0,
+    page_size: Annotated[int, Query(gt=0, le=100)] = 100,
     fields: Annotated[
         str,
         Query(
@@ -361,19 +373,19 @@ def get_items(
     ]
     | None = None,
     db: Session = Depends(get_db),  # noqa: B008
-) -> Page[GeneralItemModelType] | GeneralItemModelType:
+) -> ItemPage | GeneralItemModelType:
     """Get items in a warehouse."""
 
     field_names = fields.split(",") if fields else None
     search_params = {
-        k: v for k, v in request.query_params.items() if k not in ("offset", "limit")
+        k: v for k, v in request.query_params.items() if k not in ("page", "page_size")
     }
 
     return crud.get_items(
         db,
         warehouse_name,
-        offset=offset,
-        limit=limit,
+        offset=(page - 1) * page_size,
+        limit=page_size,
         field_names=field_names,
         search_params=search_params,
     )
