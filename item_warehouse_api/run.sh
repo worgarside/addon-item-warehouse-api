@@ -45,4 +45,4 @@ then
 fi
 
 
-python3 -u app/main.py
+python3 -u main.py
