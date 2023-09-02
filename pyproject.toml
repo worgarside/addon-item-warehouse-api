@@ -116,4 +116,4 @@ ignore = [
 convention = "google"
 
 [tool.ruff.pylint]
-max-args=6
+max-args=10

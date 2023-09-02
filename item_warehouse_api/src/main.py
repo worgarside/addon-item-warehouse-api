@@ -358,10 +358,17 @@ def delete_item(
     tags=[ApiTag.ITEM, ApiTag.PAGINATED],
 )
 def get_items(
+    *,
     request: Request,
     warehouse_name: SqlStrPath,
     page: Annotated[int, Query(ge=0)] = 0,
     page_size: Annotated[int, Query(gt=0, le=100)] = 100,
+    include_fields: Annotated[
+        bool,
+        Query(
+            description="Include the fields in the response.",
+        ),
+    ] = False,
     fields: Annotated[
         str,
         Query(
@@ -378,7 +385,9 @@ def get_items(
 
     field_names = fields.split(",") if fields else None
     search_params = {
-        k: v for k, v in request.query_params.items() if k not in ("page", "page_size")
+        k: v
+        for k, v in request.query_params.items()
+        if k not in ("page", "page_size", "include_fields")
     }
 
     return crud.get_items(
@@ -388,6 +397,7 @@ def get_items(
         limit=page_size,
         field_names=field_names,
         search_params=search_params,
+        include_fields=include_fields,
     )
 
 
@@ -430,5 +440,3 @@ if __name__ == "__main__":
     LOGGER.debug("http://localhost:8002/docs")
 
     uvicorn.run(app, host="0.0.0.0", port=8002)  # noqa: S104
-else:
-    LOGGER.debug("http://localhost:8000/docs")
