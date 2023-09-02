@@ -361,6 +361,7 @@ def get_items(
     search_params: QueryParamType,
     offset: int = 0,
     limit: int = 100,
+    include_fields: bool = False,
 ) -> ItemPage | GeneralItemModelType:
     # pylint: disable=too-many-locals
     """Get a list of items in a warehouse.
@@ -376,6 +377,8 @@ def get_items(
             Defaults to 0.
         limit (int, optional): The limit to use when querying the database. Defaults
             to 100.
+        include_fields (bool, optional): Whether to include the field names in the
+            response. Defaults to False.
 
     Returns:
         list[dict[str, object]]: A list of items in the warehouse.
@@ -430,6 +433,7 @@ def get_items(
         max_page=total // limit,
         page=(offset // limit) + 1,
         total=total,
+        include_fields=include_fields,
     )
 
 

@@ -15,7 +15,7 @@ pynguin-%:
 api:
 	clear
 	@cd item_warehouse_api/src && \
-	poetry run uvicorn main:app --reload --env-file ../../.env
+	poetry run uvicorn main:app --reload --env-file ../.env --host 0.0.0.0 --port 8002
 
 api-clean:
 	clear

@@ -9,7 +9,15 @@ from typing import Any, ClassVar, Self
 
 from database import Base
 from exceptions import DuplicateFieldError, InvalidFieldsError, WarehouseNotFoundError
-from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FieldValidationInfo,
+    create_model,
+    field_serializer,
+    field_validator,
+)
 from schemas import (
     DefaultFunctionType,
     GeneralItemModelType,
@@ -294,7 +302,21 @@ class ItemPage(_Page):
 
     items: Sequence[GeneralItemModelType] | Sequence[ItemResponse]
 
+    include_fields: bool = Field(default=False, exclude=True)
+    fields: list[str] = Field(default_factory=list, validate_default=True)
+
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
+
+    @field_validator("fields", mode="before")
+    def validate_fields(
+        cls, _: list[str] | None, info: FieldValidationInfo  # noqa: N805
+    ) -> list[str] | None:
+        """Ensure fields is populated if include_fields is True."""
+
+        if items := info.data["items"]:
+            return list(items[0].keys()) if info.data["include_fields"] else []
+
+        return []
 
     @classmethod
     def empty(cls) -> ItemPage:
