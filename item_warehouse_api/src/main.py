@@ -243,13 +243,13 @@ def get_warehouse(
     response_model_exclude_unset=True,
 )
 def get_warehouses(
-    page: Annotated[int, Query(ge=0)] = 0,
+    page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(gt=0, le=100)] = 100,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> WarehousePage:
     """List warehouses."""
 
-    return crud.get_warehouses(db, offset=page * page_size, limit=page_size)
+    return crud.get_warehouses(db, offset=(page - 1) * page_size, limit=page_size)
 
 
 @app.put("/v1/warehouses/{warehouse_name}", tags=[ApiTag.WAREHOUSE])
@@ -361,7 +361,7 @@ def get_items(
     *,
     request: Request,
     warehouse_name: SqlStrPath,
-    page: Annotated[int, Query(ge=0)] = 0,
+    page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(gt=0, le=100)] = 100,
     include_fields: Annotated[
         bool,
