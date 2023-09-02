@@ -313,8 +313,8 @@ class ItemPage(_Page):
     ) -> list[str] | None:
         """Ensure fields is populated if include_fields is True."""
 
-        if items := info.data["items"]:
-            return list(items[0].keys()) if info.data["include_fields"] else []
+        if info.data["include_fields"] and (items := info.data["items"]):
+            return list(items[0].keys())
 
         return []
 
