@@ -122,7 +122,7 @@ def request_validation_error_handler(
     _: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Handle FastAPI request validation errors."""
-    LOGGER.debug("400 Bad Request: %r", exc)
+    LOGGER.exception("400 Bad Request: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -141,7 +141,7 @@ def response_validation_error_handler(
     _: Request, exc: ResponseValidationError
 ) -> JSONResponse:
     """Handle FastAPI response validation errors."""
-    LOGGER.debug("500 Internal Server Error: %r", exc)
+    LOGGER.exception("500 Internal Server Error: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=[
@@ -158,7 +158,7 @@ def response_validation_error_handler(
 @app.exception_handler(SQLAlchemyError)
 def sqlalchemy_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
     """Handle SQLAlchemy errors."""
-    LOGGER.debug("500 Internal Server Error: %r", exc)
+    LOGGER.exception("500 Internal Server Error: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": str(exc)},
@@ -168,7 +168,7 @@ def sqlalchemy_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
 @app.exception_handler(ValidationError)
 def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
     """Handle Pydantic validation errors."""
-    LOGGER.debug("400 Bad Request: %r", exc)
+    LOGGER.exception("400 Bad Request: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -185,7 +185,7 @@ def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
 @app.exception_handler(Exception)
 def fallback_error_handler(_: Request, exc: Exception) -> JSONResponse:
     """Fallback handler fior all exceptions."""
-    LOGGER.debug("500 Bad Request: %r", exc)
+    LOGGER.exception("500 Internal Server Error: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
