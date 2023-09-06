@@ -241,10 +241,20 @@ def create_item(
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    pk_values = {pk_name: item[pk_name] for pk_name in warehouse.pk_name}
-
-    if get_item_by_pk(db, warehouse_name, pk_values=pk_values, no_exist_ok=True):
-        raise ItemExistsError(pk_values, warehouse_name)
+    pk_values = {}
+    for pk_name in warehouse.pk_name:
+        if pk_name not in item and warehouse.item_schema[pk_name].get(  # type: ignore[attr-defined]
+            "autoincrement"
+        ) in (
+            True,
+            "auto",
+        ):
+            # Autoincrementing PK removes the need to validate the item
+            break
+        pk_values[pk_name] = item[pk_name]
+    else:
+        if get_item_by_pk(db, warehouse_name, pk_values=pk_values, no_exist_ok=True):
+            raise ItemExistsError(pk_values, warehouse_name)
 
     LOGGER.debug("Validating item into schema: %r ", item)
 
