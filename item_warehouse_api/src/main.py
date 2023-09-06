@@ -1,6 +1,8 @@
 """API for managing warehouses and items."""
 from __future__ import annotations
 
+from traceback import format_exception
+
 try:
     from enum import StrEnum, auto
 except ImportError:
@@ -181,6 +183,21 @@ def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
             }
             for err in exc.errors()
         ],
+    )
+
+
+@app.exception_handler(Exception)
+def fallback_error_handler(_: Request, exc: Exception) -> JSONResponse:
+    """Fallback handler fior all exceptions."""
+    LOGGER.debug("500 Bad Request: %r", exc)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "exc": repr(exc),
+            "detail": str(exc),
+            "traceback": format_exception(exc),
+            "type": exc.__class__.__name__,
+        },
     )
 
 
