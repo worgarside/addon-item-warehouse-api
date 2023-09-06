@@ -227,10 +227,18 @@ class Warehouse(Base):  # type: ignore[misc]
                     str, PythonType | DefaultFunctionType[PythonType]
                 ] = {}
 
-                if callable(field_definition.default):
-                    field_kwargs["default_factory"] = field_definition.default
-                else:
-                    field_kwargs["default"] = field_definition.default
+                if "default" in field_definition.model_fields_set:
+                    if callable(field_definition.default):
+                        field_kwargs["default_factory"] = field_definition.default
+                    else:
+                        field_kwargs["default"] = field_definition.default
+                elif (
+                    field_definition.primary_key
+                    and field_definition.autoincrement in (True, "auto")
+                ):
+                    # Set the Pydantic default to None for autoincrementing primary keys
+                    # so that the database can generate the value.
+                    field_kwargs["default"] = None
 
                 if max_length := field_definition.type_kwargs.get("length"):
                     field_kwargs["max_length"] = max_length
