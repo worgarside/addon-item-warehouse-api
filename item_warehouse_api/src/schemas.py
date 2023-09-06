@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date, datetime
-from enum import Enum
+from enum import Enum, StrEnum
 from json import dumps
 from logging import getLogger
 from os import getenv
@@ -75,6 +75,34 @@ class ItemType(Enum):
     boolean: ItemAttributeType = Boolean
     json: ItemAttributeType = JSON
     float: ItemAttributeType = Float  # noqa: A003
+
+
+class DisplayType(StrEnum):
+    """The display type of an item."""
+
+    text = "text"
+    number = "number"
+    date = "date"
+    datetime = "datetime"
+    boolean = "boolean"
+    json = "json"
+
+    RESET = "reset"
+
+    @classmethod
+    def from_type_name(cls, name: str) -> DisplayType:
+        """Get the display type for an item type name."""
+
+        return {
+            "integer": cls.number,
+            "string": cls.text,
+            "text": cls.text,
+            "datetime": cls.datetime,
+            "date": cls.date,
+            "boolean": cls.boolean,
+            "json": cls.json,
+            "float": cls.number,
+        }[name]
 
 
 ITEM_TYPE_TYPES = tuple(item_type.value for item_type in ItemType)
@@ -201,6 +229,8 @@ class ItemFieldDefinition(BaseModel, Generic[SqlT]):
     type: SqlT  # noqa: A003
     unique: bool | None = None
 
+    display_as: DisplayType
+
     model_config: ClassVar[ConfigDict] = {
         "arbitrary_types_allowed": True,
         "extra": "forbid",
@@ -277,6 +307,17 @@ class ItemFieldDefinition(BaseModel, Generic[SqlT]):
                     pass
 
         return default
+
+    @model_validator(mode="before")
+    def validate_model(
+        cls, values: dict[str, object]  # noqa: N805
+    ) -> dict[str, object]:
+        """Either validate or populate the display_as field."""
+
+        if not values.get("display_as"):
+            values["display_as"] = DisplayType.from_type_name(str(values["type"]))
+
+        return values
 
     def model_dump_column(self, field_name: str | None = None) -> Column[SqlT]:
         """Dump the ItemFieldDefinition as a SQLAlchemy Column."""

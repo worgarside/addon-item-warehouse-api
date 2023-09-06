@@ -1,6 +1,8 @@
 """API for managing warehouses and items."""
 from __future__ import annotations
 
+from traceback import format_exception
+
 try:
     from enum import StrEnum, auto
 except ImportError:
@@ -18,22 +20,23 @@ from collections.abc import AsyncIterator  # noqa: I001
 from contextlib import asynccontextmanager
 from json import dumps
 from logging import getLogger
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import crud
 from _dependencies import get_db
-from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
+from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal, SqlStrPath
 from exceptions import ItemSchemaExistsError, WarehouseExistsError
 from fastapi import Body, Depends, FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.params import Path, Query
+from fastapi.params import Query
 from fastapi.responses import JSONResponse
 from models import ItemPage
 from models import Warehouse as WarehouseModel
 from models import WarehousePage
 from pydantic import ValidationError
 from schemas import (
+    DisplayType,
     GeneralItemModelType,
     ItemResponse,
     ItemSchema,
@@ -63,11 +66,6 @@ class ApiTag(StrEnum):
     ITEM_SCHEMA = auto()
     PAGINATED = auto()
     WAREHOUSE = auto()
-
-
-SqlStrPath = Annotated[
-    str, Path(pattern=r"^[a-zA-Z0-9_]+$", min_length=1, max_length=64)
-]
 
 
 @asynccontextmanager
@@ -124,7 +122,7 @@ def request_validation_error_handler(
     _: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Handle FastAPI request validation errors."""
-    LOGGER.debug("400 Bad Request: %r", exc)
+    LOGGER.exception("400 Bad Request: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -143,7 +141,7 @@ def response_validation_error_handler(
     _: Request, exc: ResponseValidationError
 ) -> JSONResponse:
     """Handle FastAPI response validation errors."""
-    LOGGER.debug("500 Internal Server Error: %r", exc)
+    LOGGER.exception("500 Internal Server Error: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=[
@@ -160,7 +158,7 @@ def response_validation_error_handler(
 @app.exception_handler(SQLAlchemyError)
 def sqlalchemy_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
     """Handle SQLAlchemy errors."""
-    LOGGER.debug("500 Internal Server Error: %r", exc)
+    LOGGER.exception("500 Internal Server Error: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": str(exc)},
@@ -170,7 +168,7 @@ def sqlalchemy_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
 @app.exception_handler(ValidationError)
 def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
     """Handle Pydantic validation errors."""
-    LOGGER.debug("400 Bad Request: %r", exc)
+    LOGGER.exception("400 Bad Request: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -181,6 +179,21 @@ def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
             }
             for err in exc.errors()
         ],
+    )
+
+
+@app.exception_handler(Exception)
+def fallback_error_handler(_: Request, exc: Exception) -> JSONResponse:
+    """Fallback handler fior all exceptions."""
+    LOGGER.exception("500 Internal Server Error: %r", exc)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "exc": repr(exc),
+            "detail": str(exc),
+            "traceback": format_exception(exc),
+            "type": exc.__class__.__name__,
+        },
     )
 
 
@@ -278,6 +291,37 @@ def get_item_schema(
 ) -> ItemSchema:
     """Get an warehouse's/item's schema."""
     return crud.get_schema(db, warehouse_name=warehouse_name)
+
+
+@app.put(
+    "/v1/warehouses/{warehouse_name}/schema/{field_name}",
+    response_model=ItemSchema,
+    tags=[ApiTag.ITEM_SCHEMA],
+    response_model_exclude_unset=True,
+)
+def update_item_field_definition(
+    *,
+    db: Session = Depends(get_db),  # noqa: B008
+    warehouse_name: SqlStrPath,
+    field_name: SqlStrPath,
+    update: Annotated[
+        dict[Literal["display_as"], DisplayType],
+        Body(
+            examples=[
+                {
+                    "display_as": DisplayType.RESET,
+                },
+                {
+                    "display_as": DisplayType.boolean,
+                },
+            ]
+        ),
+    ],
+) -> ItemSchema:
+    """Update an item's field definition."""
+    return crud.update_schema(
+        db, schema=update, field_name=field_name, warehouse_name=warehouse_name
+    )
 
 
 @app.get(

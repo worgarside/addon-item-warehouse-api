@@ -6,7 +6,7 @@ from json import dumps
 from logging import getLogger
 from typing import TYPE_CHECKING, Literal, overload
 
-from database import GeneralItemModelType
+from database import GeneralItemModelType, SqlStrPath
 from exceptions import (
     InvalidFieldsError,
     ItemExistsError,
@@ -17,7 +17,14 @@ from exceptions import (
 )
 from fastapi import HTTPException, status
 from models import ItemPage, Warehouse, WarehousePage
-from schemas import ItemBase, ItemResponse, ItemSchema, QueryParamType, WarehouseCreate
+from schemas import (
+    DisplayType,
+    ItemBase,
+    ItemResponse,
+    ItemSchema,
+    QueryParamType,
+    WarehouseCreate,
+)
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Query, Session
 from wg_utilities.loggers import add_stream_handler
@@ -54,7 +61,7 @@ def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> Warehouse:
     return db_warehouse
 
 
-def delete_warehouse(db: Session, /, warehouse_name: str) -> None:
+def delete_warehouse(db: Session, /, warehouse_name: SqlStrPath) -> None:
     """Delete a warehouse."""
     warehouse = get_warehouse(db, warehouse_name)
 
@@ -67,20 +74,20 @@ def delete_warehouse(db: Session, /, warehouse_name: str) -> None:
 
 @overload
 def get_warehouse(
-    db: Session, /, name: str, *, no_exist_ok: Literal[False] = False
+    db: Session, /, name: SqlStrPath, *, no_exist_ok: Literal[False] = False
 ) -> Warehouse:
     ...
 
 
 @overload
 def get_warehouse(
-    db: Session, /, name: str, *, no_exist_ok: Literal[True] = True
+    db: Session, /, name: SqlStrPath, *, no_exist_ok: Literal[True] = True
 ) -> Warehouse | None:
     ...
 
 
 def get_warehouse(
-    db: Session, /, name: str, *, no_exist_ok: bool = False
+    db: Session, /, name: SqlStrPath, *, no_exist_ok: bool = False
 ) -> Warehouse | None:
     """Get a warehouse by its name."""
 
@@ -148,7 +155,7 @@ def get_warehouses(
 def update_warehouse(
     db: Session,
     /,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     warehouse: WarehouseCreate,
 ) -> Warehouse:
     """Update a warehouse."""
@@ -166,8 +173,8 @@ def get_schema(
     db: Session,
     /,
     *,
-    item_name: str | None = ...,
-    warehouse_name: str | None = ...,
+    item_name: SqlStrPath | None = ...,
+    warehouse_name: SqlStrPath | None = ...,
     no_exist_ok: Literal[False] = False,
 ) -> ItemSchema:
     ...
@@ -178,8 +185,8 @@ def get_schema(
     db: Session,
     /,
     *,
-    item_name: str | None = ...,
-    warehouse_name: str | None = ...,
+    item_name: SqlStrPath | None = ...,
+    warehouse_name: SqlStrPath | None = ...,
     no_exist_ok: Literal[True] = True,
 ) -> ItemSchema | None:
     ...
@@ -189,8 +196,8 @@ def get_schema(
     db: Session,
     /,
     *,
-    item_name: str | None = None,
-    warehouse_name: str | None = None,
+    item_name: SqlStrPath | None = None,
+    warehouse_name: SqlStrPath | None = None,
     no_exist_ok: bool = False,
 ) -> ItemSchema | None:
     """Get an item's schema."""
@@ -231,20 +238,60 @@ def get_warehouse_schemas(db: Session, /) -> dict[str, ItemSchema]:
     return dict(db.query(Warehouse.name, Warehouse.item_schema))
 
 
+def update_schema(
+    db: Session,
+    /,
+    *,
+    schema: dict[Literal["display_as"], DisplayType],
+    field_name: SqlStrPath,
+    warehouse_name: SqlStrPath,
+) -> ItemSchema:
+    """Update an ItemSchema."""
+
+    warehouse = get_warehouse(db, warehouse_name)
+
+    if field_name not in warehouse.item_schema:
+        raise InvalidFieldsError(field_name)
+
+    if (display_as := schema["display_as"]) == DisplayType.RESET:
+        warehouse.item_schema[field_name]["display_as"] = DisplayType.from_type_name(  # type: ignore[index] # noqa: E501
+            warehouse.item_schema[field_name]["type"]  # type: ignore[index]
+        )
+    else:
+        warehouse.item_schema[field_name]["display_as"] = display_as  # type: ignore[index]
+
+    db.query(Warehouse).filter(Warehouse.name == warehouse_name).update(
+        warehouse.as_dict()
+    )
+
+    db.commit()
+    return get_schema(db, warehouse_name=warehouse_name)
+
+
 # Item Operations
 
 
 def create_item(
-    db: Session, warehouse_name: str, item: GeneralItemModelType
+    db: Session, warehouse_name: SqlStrPath, item: GeneralItemModelType
 ) -> ItemResponse:
     """Create an item in a warehouse."""
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    pk_values = {pk_name: item[pk_name] for pk_name in warehouse.pk_name}
-
-    if get_item_by_pk(db, warehouse_name, pk_values=pk_values, no_exist_ok=True):
-        raise ItemExistsError(pk_values, warehouse_name)
+    pk_values = {}
+    for pk_name in warehouse.pk_name:
+        if pk_name not in item and warehouse.item_schema[pk_name].get(  # type: ignore[attr-defined]
+            "autoincrement"
+        ) in (
+            True,
+            "auto",
+        ):
+            # Autoincrementing PK removes the need to validate the item
+            break
+        pk_values[pk_name] = item[pk_name]
+    else:
+        if get_item_by_pk(db, warehouse_name, pk_values=pk_values, no_exist_ok=True):
+            raise ItemExistsError(pk_values, warehouse_name)
 
     LOGGER.debug("Validating item into schema: %r ", item)
 
@@ -266,7 +313,7 @@ def create_item(
 
 
 def delete_item(
-    db: Session, /, warehouse_name: str, search_values: QueryParamType
+    db: Session, /, warehouse_name: SqlStrPath, search_values: QueryParamType
 ) -> None:
     """Delete an item from a warehouse."""
 
@@ -284,7 +331,7 @@ def delete_item(
 def get_item_by_pk(
     db: Session,
     /,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     pk_values: GeneralItemModelType | QueryParamType,
     field_names: list[str] | None = None,
     *,
@@ -297,7 +344,7 @@ def get_item_by_pk(
 def get_item_by_pk(
     db: Session,
     /,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     pk_values: GeneralItemModelType | QueryParamType,
     field_names: list[str] | None = None,
     *,
@@ -309,7 +356,7 @@ def get_item_by_pk(
 def get_item_by_pk(
     db: Session,
     /,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     pk_values: GeneralItemModelType | QueryParamType,
     field_names: list[str] | None = None,
     *,
@@ -355,7 +402,7 @@ def get_item_by_pk(
 def get_items(
     db: Session,
     /,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     field_names: list[str] | None = None,
     *,
     search_params: QueryParamType,
@@ -441,7 +488,7 @@ def update_item(
     db: Session,
     /,
     *,
-    warehouse_name: str,
+    warehouse_name: SqlStrPath,
     pk_values: GeneralItemModelType,
     item_update: GeneralItemModelType,
 ) -> GeneralItemModelType:
@@ -475,7 +522,7 @@ def update_item(
 
 
 # TODO caching!
-def get_item_count(db: Session, /, warehouse_name: str) -> int:
+def get_item_count(db: Session, /, warehouse_name: SqlStrPath) -> int:
     """Get the number of items in a warehouse."""
 
     warehouse = get_warehouse(db, warehouse_name)
