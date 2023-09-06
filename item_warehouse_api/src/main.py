@@ -20,22 +20,23 @@ from collections.abc import AsyncIterator  # noqa: I001
 from contextlib import asynccontextmanager
 from json import dumps
 from logging import getLogger
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import crud
 from _dependencies import get_db
-from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal
+from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal, SqlStrPath
 from exceptions import ItemSchemaExistsError, WarehouseExistsError
 from fastapi import Body, Depends, FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.params import Path, Query
+from fastapi.params import Query
 from fastapi.responses import JSONResponse
 from models import ItemPage
 from models import Warehouse as WarehouseModel
 from models import WarehousePage
 from pydantic import ValidationError
 from schemas import (
+    DisplayType,
     GeneralItemModelType,
     ItemResponse,
     ItemSchema,
@@ -65,11 +66,6 @@ class ApiTag(StrEnum):
     ITEM_SCHEMA = auto()
     PAGINATED = auto()
     WAREHOUSE = auto()
-
-
-SqlStrPath = Annotated[
-    str, Path(pattern=r"^[a-zA-Z0-9_]+$", min_length=1, max_length=64)
-]
 
 
 @asynccontextmanager
@@ -295,6 +291,37 @@ def get_item_schema(
 ) -> ItemSchema:
     """Get an warehouse's/item's schema."""
     return crud.get_schema(db, warehouse_name=warehouse_name)
+
+
+@app.put(
+    "/v1/warehouses/{warehouse_name}/schema/{field_name}",
+    response_model=ItemSchema,
+    tags=[ApiTag.ITEM_SCHEMA],
+    response_model_exclude_unset=True,
+)
+def update_item_field_definition(
+    *,
+    db: Session = Depends(get_db),  # noqa: B008
+    warehouse_name: SqlStrPath,
+    field_name: SqlStrPath,
+    update: Annotated[
+        dict[Literal["display_as"], DisplayType],
+        Body(
+            examples=[
+                {
+                    "display_as": DisplayType.RESET,
+                },
+                {
+                    "display_as": DisplayType.boolean,
+                },
+            ]
+        ),
+    ],
+) -> ItemSchema:
+    """Update an item's field definition."""
+    return crud.update_schema(
+        db, schema=update, field_name=field_name, warehouse_name=warehouse_name
+    )
 
 
 @app.get(

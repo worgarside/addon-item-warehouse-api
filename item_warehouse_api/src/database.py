@@ -6,8 +6,9 @@ from datetime import date, datetime
 from json import dumps
 from logging import getLogger
 from os import getenv
-from typing import Any, ClassVar, Literal, overload
+from typing import Annotated, Any, ClassVar, Literal, overload
 
+from fastapi.params import Path
 from schemas import ITEM_TYPE_TYPES, DefaultFunction, GeneralItemModelType
 from sqlalchemy import Table
 from sqlalchemy.engine import Engine, create_engine
@@ -172,4 +173,8 @@ Base = declarative_base(cls=_BaseExtra)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_BaseExtra.ENGINE)
 
-__all__ = ["Base", "SessionLocal", "GeneralItemModelType"]
+SqlStrPath = Annotated[
+    str, Path(pattern=r"^[a-zA-Z0-9_]+$", min_length=1, max_length=64)
+]
+
+__all__ = ["Base", "SessionLocal", "GeneralItemModelType", "SqlStrPath"]
