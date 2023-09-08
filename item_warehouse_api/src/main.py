@@ -423,15 +423,38 @@ def get_items(
         ),
     ]
     | None = None,
+    order_by: Annotated[
+        str,
+        Query(
+            default=None,
+            example="age",
+            description="A comma-separated list of fields to order by.",
+            pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
+        ),
+    ]
+    | None = None,
+    ascending: Annotated[
+        bool,
+        Query(
+            description="Sort ascending if true, descending if false.",
+        ),
+    ] = True,
     db: Session = Depends(get_db),  # noqa: B008
 ) -> ItemPage | GeneralItemModelType:
     """Get items in a warehouse."""
 
-    field_names = fields.split(",") if fields else None
     search_params = {
         k: v
         for k, v in request.query_params.items()
-        if k not in ("page", "page_size", "include_fields")
+        if k
+        not in (
+            "page",
+            "page_size",
+            "include_fields",
+            "fields",
+            "order_by",
+            "ascending",
+        )
     }
 
     return crud.get_items(
@@ -439,9 +462,11 @@ def get_items(
         warehouse_name,
         offset=(page - 1) * page_size,
         limit=page_size,
-        field_names=field_names,
+        field_names=fields.split(",") if fields else None,
         search_params=search_params,
         include_fields=include_fields,
+        order_by=order_by,
+        ascending=ascending,
     )
 
 

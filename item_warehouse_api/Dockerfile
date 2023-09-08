@@ -5,7 +5,14 @@ COPY src /
 
 # Install requirements for add-on
 RUN \
-  apk add --no-cache python3 py3-pip py3-lxml python3-dev musl-dev gcc libffi-dev
+  apk add --no-cache \
+  python3 \
+  py3-pip \
+  py3-lxml \
+  python3-dev \
+  musl-dev \
+  gcc \
+  libffi-dev
 
 WORKDIR /
 
