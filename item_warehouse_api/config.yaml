@@ -1,7 +1,7 @@
 ---
 name: 'Item Warehouse: API'
 description: A warehouse with an API on the front of it
-version: 2.2.0
+version: 2.3.0
 slug: item_warehouse_api
 init: false
 arch:
@@ -12,20 +12,18 @@ arch:
   - i386
 startup: before
 options:
-  database_url:
-  database_username:
-  database_password:
-  database_driver_name:
-  database_host:
-  database_port:
-  database_name:
+  database_username: warehouse_manager
+  database_driver_name: mariadb+pymysql
+  database_host: homeassistant.local
+  database_port: 3306
+  database_name: item_warehouse
 schema:
-  database_url: str
-  database_username: str
-  database_password: str
-  database_driver_name: str
-  database_host: str
-  database_port: int
-  database_name: str
+  database_url: str?
+  database_username: str?
+  database_password: password?
+  database_driver_name: str?
+  database_host: str?
+  database_port: int?
+  database_name: str?
 ports:
   8002/tcp: 8002

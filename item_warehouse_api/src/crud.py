@@ -399,7 +399,7 @@ def get_item_by_pk(
     return item.as_dict(include=field_names)
 
 
-def get_items(
+def get_items(  # noqa: PLR0912
     db: Session,
     /,
     warehouse_name: SqlStrPath,
@@ -409,6 +409,8 @@ def get_items(
     offset: int = 0,
     limit: int = 100,
     include_fields: bool = False,
+    order_by: str | None = None,
+    ascending: bool = True,
 ) -> ItemPage | GeneralItemModelType:
     # pylint: disable=too-many-locals
     """Get a list of items in a warehouse.
@@ -426,6 +428,9 @@ def get_items(
             to 100.
         include_fields (bool, optional): Whether to include the field names in the
             response. Defaults to False.
+        order_by (str, optional): The field to order the results by. Defaults to None.
+        ascending (bool, optional): Whether to order the results ascending or
+            descending. Defaults to True (ascending).
 
     Returns:
         list[dict[str, object]]: A list of items in the warehouse.
@@ -448,6 +453,9 @@ def get_items(
     if not field_names:
         query: Query[Warehouse] = db.query(warehouse.item_model)
     else:
+        if order_by and order_by not in field_names:
+            field_names.append(order_by)
+
         field_names = sorted(field_names)
 
         try:
@@ -462,6 +470,16 @@ def get_items(
     if search_params:
         for k, v in search_params.items():
             query = query.filter(getattr(warehouse.item_model, k) == v)
+
+    if order_by:
+        try:
+            ordered_field = getattr(warehouse.item_model, order_by)
+        except AttributeError as exc:
+            raise InvalidFieldsError(exc.name) from exc
+
+        query = query.order_by(
+            ordered_field.asc() if ascending else ordered_field.desc()
+        )
 
     results = query.offset(offset).limit(limit).all()
 
