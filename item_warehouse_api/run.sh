@@ -45,4 +45,9 @@ then
 fi
 
 
-python3 -u main.py
+cd src || exit 1
+
+uvicorn main:app \
+--reload \
+--host 0.0.0.0 \
+--port 8002
