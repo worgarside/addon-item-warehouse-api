@@ -67,7 +67,8 @@ def delete_warehouse(db: Session, /, warehouse_name: SqlStrPath) -> None:
 
     warehouse.drop(no_exist_ok=True)
 
-    db.query(Warehouse).filter(Warehouse.name == warehouse_name).delete()
+    if db.query(Warehouse).filter(Warehouse.name == warehouse_name).delete() == 0:
+        raise WarehouseNotFoundError(warehouse_name)
 
     db.commit()
 
@@ -319,9 +320,14 @@ def delete_item(
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    db.query(warehouse.item_model).filter(
-        warehouse.get_pk_filter_condition(search_values)
-    ).delete()
+    if (
+        db.query(warehouse.item_model)
+        .filter(warehouse.get_pk_filter_condition(search_values))
+        .delete()
+        == 0
+    ):
+        raise ItemNotFoundError(search_values)
+
     db.commit()
 
 
