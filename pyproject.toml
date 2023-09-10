@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "addon-item-warehouse-api"
-version = "2.3.0"
+version = "2.3.1"
 description = "Home Assistant add-on for interacting with items in a database via an API"
 authors = ["Will Garside <worgarside@gmail.com>"]
 license = "MIT"

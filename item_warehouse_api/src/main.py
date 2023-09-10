@@ -26,7 +26,7 @@ import crud
 from _dependencies import get_db
 from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal, SqlStrPath
 from exceptions import ItemSchemaExistsError, WarehouseExistsError
-from fastapi import Body, Depends, FastAPI, Request, status
+from fastapi import Body, Depends, FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.params import Query
@@ -224,15 +224,16 @@ def create_warehouse(
 
 @app.delete(
     "/v1/warehouses/{warehouse_name}",
-    response_model=None,
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=Any,
     tags=[ApiTag.WAREHOUSE],
 )
 def delete_warehouse(
     warehouse_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
-) -> None:
+) -> Any:
     """Delete a warehouse."""
     crud.delete_warehouse(db, warehouse_name)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get(
@@ -382,18 +383,19 @@ def create_item(
 
 @app.delete(
     "/v1/warehouses/{warehouse_name}/items",
-    response_model=None,
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=Any,
     tags=[ApiTag.ITEM],
 )
 def delete_item(
     request: Request,
     warehouse_name: SqlStrPath,
     db: Session = Depends(get_db),  # noqa: B008
-) -> None:
+) -> Any:
     """Delete an item in a warehouse."""
 
     crud.delete_item(db, warehouse_name, search_values=dict(request.query_params))
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get(
