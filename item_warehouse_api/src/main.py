@@ -224,12 +224,12 @@ def create_warehouse(
 
 @app.delete(
     "/v1/warehouses/{warehouse_name}",
-    response_model=Response,
+    response_model=Any,
     tags=[ApiTag.WAREHOUSE],
 )
 def delete_warehouse(
     warehouse_name: SqlStrPath, db: Session = Depends(get_db)  # noqa: B008
-) -> Response:
+) -> Any:
     """Delete a warehouse."""
     crud.delete_warehouse(db, warehouse_name)
 
@@ -383,14 +383,14 @@ def create_item(
 
 @app.delete(
     "/v1/warehouses/{warehouse_name}/items",
-    response_model=Response,
+    response_model=Any,
     tags=[ApiTag.ITEM],
 )
 def delete_item(
     request: Request,
     warehouse_name: SqlStrPath,
     db: Session = Depends(get_db),  # noqa: B008
-) -> Response:
+) -> Any:
     """Delete an item in a warehouse."""
 
     crud.delete_item(db, warehouse_name, search_values=dict(request.query_params))
