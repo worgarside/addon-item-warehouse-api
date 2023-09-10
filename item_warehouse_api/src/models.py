@@ -30,11 +30,12 @@ from schemas import (
     QueryParamType,
 )
 from schemas import Warehouse as WarehouseSchema
-from sqlalchemy import JSON, Column, DateTime, Integer, String
+from sqlalchemy import JSON, Column, DateTime, Integer, String, and_
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.decl_api import DeclarativeMeta
+from sqlalchemy.sql.elements import BooleanClauseList
 from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
@@ -120,6 +121,24 @@ class Warehouse(Base):  # type: ignore[misc]
         LOGGER.info("Creating warehouse %r", self.name)
 
         self.item_model.__table__.create(bind=self.ENGINE)
+
+    def get_pk_filter_condition(
+        self, pk_dict: GeneralItemModelType | QueryParamType
+    ) -> BooleanClauseList:
+        """Get the SQLAlchemy filter condition for the given primary key dict.
+
+        Args:
+            pk_dict (dict[str, str]): The primary key dict to get the filter condition
+                for.
+
+        Returns:
+            tuple[InstrumentedAttribute, ...]: The SQLAlchemy filter condition for the
+                given primary key dict.
+        """
+
+        return and_(
+            *(a == b for a, b in zip(self.pk, self.parse_pk_dict(pk_dict), strict=True))
+        )
 
     def parse_pk_dict(
         self, pk_dict: GeneralItemModelType | QueryParamType

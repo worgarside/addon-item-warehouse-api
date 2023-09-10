@@ -319,10 +319,8 @@ def delete_item(
 
     warehouse = get_warehouse(db, warehouse_name)
 
-    _ = get_item_by_pk(db, warehouse_name, pk_values=search_values)
-
     db.query(warehouse.item_model).filter(
-        warehouse.item_model.pk == warehouse.parse_pk_dict(search_values)
+        warehouse.get_pk_filter_condition(search_values)
     ).delete()
     db.commit()
 
@@ -524,11 +522,10 @@ def update_item(
     )
 
     warehouse.item_schema_class.model_validate(new_item_dict)
-    item_pk = warehouse.parse_pk_dict(pk_values)
 
     try:
         db.query(warehouse.item_model).filter(
-            warehouse.item_model.pk == item_pk
+            warehouse.get_pk_filter_condition(pk_values)
         ).update(item_update)
     except IntegrityError as exc:
         if "unique constraint failed" in str(exc).lower():
