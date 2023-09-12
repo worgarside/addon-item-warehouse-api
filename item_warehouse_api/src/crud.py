@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from json import dumps
 from logging import getLogger
+from os import getenv
 from typing import TYPE_CHECKING, Literal, overload
 
 from database import GeneralItemModelType, SqlStrPath
@@ -37,7 +38,7 @@ else:
 
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
+LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
 add_stream_handler(LOGGER)
 
 

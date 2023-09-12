@@ -16,7 +16,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker  # type: ignore[attr-d
 from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
+LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
 add_stream_handler(LOGGER)
 
 

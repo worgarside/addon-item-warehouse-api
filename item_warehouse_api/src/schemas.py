@@ -42,7 +42,7 @@ from sqlalchemy.types import UserDefinedType
 from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
+LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
 add_stream_handler(LOGGER)
 
 
