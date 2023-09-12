@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from datetime import date, datetime
 from json import dumps
 from logging import getLogger
+from os import getenv
 from typing import Any, ClassVar, Self
 
 from database import Base
@@ -39,7 +40,7 @@ from sqlalchemy.sql.elements import BooleanClauseList
 from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
+LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
 add_stream_handler(LOGGER)
 
 
@@ -176,7 +177,7 @@ class Warehouse(Base):  # type: ignore[misc]
 
             model_fields: dict[str, Column[ItemAttributeType] | str] = {}
 
-            user_defined_pk = False
+            user_defined_pk_fields = []
 
             _field_def: ItemFieldDefinition[ItemAttributeType]
             for field_name, _field_def in self.item_schema.items():
@@ -192,24 +193,25 @@ class Warehouse(Base):  # type: ignore[misc]
                 )
 
                 if field_definition.primary_key:
-                    user_defined_pk = True
-                    LOGGER.info(
-                        "User-defined primary key %r found in warehouse %r",
-                        field_name,
-                        self.name,
-                    )
+                    user_defined_pk_fields.append(field_name)
 
-            if not user_defined_pk:
+            if not user_defined_pk_fields:
                 model_fields["id"] = Column(
                     "id",
                     Integer,  # type: ignore[arg-type]
                     primary_key=True,
                     index=True,
                 )
+            else:
+                LOGGER.info(
+                    "User-defined primary key `%s` found in warehouse %r",
+                    "|".join(user_defined_pk_fields),
+                    self.name,
+                )
 
             model_fields["__tablename__"] = self.name
 
-            LOGGER.debug(
+            LOGGER.info(
                 "Model fields:\n%s",
                 dumps(model_fields, indent=2, default=repr, sort_keys=True),
             )
