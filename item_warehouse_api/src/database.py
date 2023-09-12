@@ -119,7 +119,18 @@ class _BaseExtra:
         if isinstance(obj, (date | datetime)):
             return obj.isoformat()
 
-        dumps(obj)
+        if isinstance(obj, dict):
+            return {key: cls._serialize(value) for key, value in obj.items()}
+
+        if isinstance(obj, list):
+            return [cls._serialize(value) for value in obj]
+
+        # Check it can be JSON serialized
+        try:
+            dumps(obj)
+        except TypeError:
+            LOGGER.exception("Failed to serialize %r: %r", type(obj), obj)
+            raise
 
         return obj
 
