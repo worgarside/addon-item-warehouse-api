@@ -38,6 +38,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.sql.schema import NULL_UNSPECIFIED  # type: ignore[attr-defined]
+from sqlalchemy.sql.sqltypes import Double  # type: ignore[attr-defined]
 from sqlalchemy.types import UserDefinedType
 from wg_utilities.loggers import add_stream_handler
 
@@ -55,6 +56,7 @@ ItemAttributeType = (
     | type[Boolean]
     | type[JSON]
     | type[Float]
+    | type[Double]
 )
 
 PythonType = int | str | datetime | date | bool | dict | float | None
@@ -75,6 +77,7 @@ class ItemType(Enum):
     boolean: ItemAttributeType = Boolean
     json: ItemAttributeType = JSON
     float: ItemAttributeType = Float  # noqa: A003
+    double: ItemAttributeType = Double
 
 
 class DisplayType(StrEnum):
@@ -102,6 +105,7 @@ class DisplayType(StrEnum):
             "boolean": cls.boolean,
             "json": cls.json,
             "float": cls.number,
+            "double": cls.number,
         }[name]
 
 
