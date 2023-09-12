@@ -141,7 +141,7 @@ def response_validation_error_handler(
     _: Request, exc: ResponseValidationError
 ) -> JSONResponse:
     """Handle FastAPI response validation errors."""
-    LOGGER.exception("500 Internal Server Error: %r", exc)
+    LOGGER.exception("500 Internal Server Error (%s): %s", exc.__class__.__name__, exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=[
@@ -158,17 +158,22 @@ def response_validation_error_handler(
 @app.exception_handler(SQLAlchemyError)
 def sqlalchemy_error_handler(_: Request, exc: SQLAlchemyError) -> JSONResponse:
     """Handle SQLAlchemy errors."""
-    LOGGER.exception("500 Internal Server Error: %r", exc)
+    LOGGER.exception("500 Internal Server Error (%s): %s", exc.__class__.__name__, exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": str(exc)},
+        content={
+            "exc": repr(exc),
+            "detail": str(exc),
+            "traceback": format_exception(exc),
+            "type": exc.__class__.__name__,
+        },
     )
 
 
 @app.exception_handler(ValidationError)
 def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
     """Handle Pydantic validation errors."""
-    LOGGER.exception("400 Bad Request: %r", exc)
+    LOGGER.exception("400 Bad Request (%s): %s", exc.__class__.__name__, exc)
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content=[
@@ -185,7 +190,9 @@ def validation_error_handler(_: Request, exc: ValidationError) -> JSONResponse:
 @app.exception_handler(Exception)
 def fallback_error_handler(_: Request, exc: Exception) -> JSONResponse:
     """Fallback handler fior all exceptions."""
-    LOGGER.exception("500 Internal Server Error: %r", exc)
+    LOGGER.exception(
+        "500 Internal Server Error **Fallback** (%s): %s", exc.__class__.__name__, exc
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

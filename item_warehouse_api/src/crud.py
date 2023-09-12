@@ -25,7 +25,7 @@ from schemas import (
     QueryParamType,
     WarehouseCreate,
 )
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.orm import Query, Session
 from wg_utilities.loggers import add_stream_handler
 
@@ -48,15 +48,14 @@ def create_warehouse(db: Session, /, warehouse: WarehouseCreate) -> Warehouse:
     """Create a warehouse."""
     db_warehouse = Warehouse(**warehouse.model_dump(exclude_unset=True, by_alias=True))
 
-    db_warehouse.intialise_warehouse()
-
     try:
+        db_warehouse.intialise_warehouse()
         db.add(db_warehouse)
         db.commit()
         db.refresh(db_warehouse)
-    except OperationalError:
-        # TODO improve this to only drop if the row doesn't exist
-        db_warehouse.drop_warehouse(no_exist_ok=True)
+    except DatabaseError:
+        db_warehouse.drop(no_exist_ok=True)
+        raise
 
     return db_warehouse
 
@@ -133,7 +132,7 @@ def get_warehouses(
 
         warehouses = query.all()
         total = db.query(Warehouse).count()
-    except OperationalError as exc:
+    except DatabaseError as exc:
         if (
             allow_no_warehouse_table
             and f"no such table: {Warehouse.__tablename__}" in str(exc)
