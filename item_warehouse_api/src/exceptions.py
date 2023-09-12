@@ -7,13 +7,13 @@ from abc import ABC
 from collections.abc import Callable
 from json import dumps
 from logging import getLogger
-from os import environ
+from os import environ, getenv
 
 from fastapi import HTTPException, status
 from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
+LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
 add_stream_handler(LOGGER)
 
 
