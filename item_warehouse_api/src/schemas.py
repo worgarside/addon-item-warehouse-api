@@ -9,7 +9,7 @@ from logging import getLogger
 from os import getenv
 from re import Pattern
 from re import compile as re_compile
-from typing import Annotated, ClassVar, Generic, Literal, TypeVar
+from typing import TYPE_CHECKING, Annotated, ClassVar, Generic, Literal, TypeVar
 from uuid import uuid4
 
 from annotated_types import Len
@@ -38,9 +38,13 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.sql.schema import NULL_UNSPECIFIED  # type: ignore[attr-defined]
-from sqlalchemy.sql.sqltypes import Double  # type: ignore[attr-defined]
 from sqlalchemy.types import UserDefinedType
 from wg_utilities.loggers import add_stream_handler
+
+if TYPE_CHECKING:
+    Double = Float
+else:
+    from sqlalchemy import Double  
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
