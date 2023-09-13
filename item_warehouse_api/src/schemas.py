@@ -44,7 +44,7 @@ from wg_utilities.loggers import add_stream_handler
 if TYPE_CHECKING:
     Double = Float
 else:
-    from sqlalchemy import Double  
+    from sqlalchemy import Double
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
