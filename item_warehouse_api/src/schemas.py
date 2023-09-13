@@ -9,7 +9,7 @@ from logging import getLogger
 from os import getenv
 from re import Pattern
 from re import compile as re_compile
-from typing import Annotated, ClassVar, Generic, Literal, TypeVar
+from typing import TYPE_CHECKING, Annotated, ClassVar, Generic, Literal, TypeVar
 from uuid import uuid4
 
 from annotated_types import Len
@@ -41,8 +41,13 @@ from sqlalchemy.sql.schema import NULL_UNSPECIFIED  # type: ignore[attr-defined]
 from sqlalchemy.types import UserDefinedType
 from wg_utilities.loggers import add_stream_handler
 
+if TYPE_CHECKING:
+    Double = Float
+else:
+    from sqlalchemy import Double
+
 LOGGER = getLogger(__name__)
-LOGGER.setLevel("DEBUG")
+LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
 add_stream_handler(LOGGER)
 
 
@@ -55,6 +60,7 @@ ItemAttributeType = (
     | type[Boolean]
     | type[JSON]
     | type[Float]
+    | type[Double]
 )
 
 PythonType = int | str | datetime | date | bool | dict | float | None
@@ -75,6 +81,7 @@ class ItemType(Enum):
     boolean: ItemAttributeType = Boolean
     json: ItemAttributeType = JSON
     float: ItemAttributeType = Float  # noqa: A003
+    double: ItemAttributeType = Double
 
 
 class DisplayType(StrEnum):
@@ -102,6 +109,7 @@ class DisplayType(StrEnum):
             "boolean": cls.boolean,
             "json": cls.json,
             "float": cls.number,
+            "double": cls.number,
         }[name]
 
 
