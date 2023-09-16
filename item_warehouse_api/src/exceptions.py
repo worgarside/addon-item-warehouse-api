@@ -67,7 +67,7 @@ DuplicateFieldError = _http_exception_factory(
 
 ItemExistsError = _http_exception_factory(
     "ItemExistsError",
-    status.HTTP_400_BAD_REQUEST,
+    status.HTTP_409_CONFLICT,
     "Item with PK {!r} already exists in warehouse {!r}",
 )
 
