@@ -12,6 +12,7 @@ from re import compile as re_compile
 from typing import TYPE_CHECKING, Annotated, ClassVar, Generic, Literal, TypeVar
 from uuid import uuid4
 
+from _helpers import add_stream_handler
 from annotated_types import Len
 from bidict import MutableBidict, bidict
 from exceptions import MissingTypeArgumentError, ValueMustBeOneOfError
@@ -39,7 +40,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.sql.schema import NULL_UNSPECIFIED  # type: ignore[attr-defined]
 from sqlalchemy.types import UserDefinedType
-from wg_utilities.loggers import add_stream_handler
 
 if TYPE_CHECKING:
     Double = Float

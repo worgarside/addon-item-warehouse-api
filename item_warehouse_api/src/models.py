@@ -8,6 +8,7 @@ from logging import getLogger
 from os import getenv
 from typing import Any, ClassVar, Self
 
+from _helpers import add_stream_handler
 from database import Base
 from exceptions import DuplicateFieldError, InvalidFieldsError, WarehouseNotFoundError
 from pydantic import (
@@ -37,7 +38,6 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlalchemy.sql.elements import BooleanClauseList
-from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))

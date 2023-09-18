@@ -6,9 +6,9 @@ from collections.abc import Generator
 from logging import getLogger
 from os import getenv
 
+from _helpers import add_stream_handler
 from database import SessionLocal
 from sqlalchemy.orm import Session
-from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
