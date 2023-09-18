@@ -7,6 +7,7 @@ from logging import getLogger
 from os import getenv
 from typing import TYPE_CHECKING, Literal, overload
 
+from _helpers import add_stream_handler
 from database import GeneralItemModelType, SqlStrPath
 from exceptions import (
     InvalidFieldsError,
@@ -28,7 +29,6 @@ from schemas import (
 )
 from sqlalchemy.exc import DatabaseError, IntegrityError
 from sqlalchemy.orm import Query, Session
-from wg_utilities.loggers import add_stream_handler
 
 if TYPE_CHECKING:
     from pydantic.main import IncEx

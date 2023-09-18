@@ -98,13 +98,12 @@ repos:
           - --strict
           - --show-error-codes
         additional_dependencies:
+          - bidict
           - fastapi
           - pydantic
           - sqlalchemy
           - sqlalchemy-stubs
           - uvicorn
-          - wg-utilities
-          - bidict
 
   - repo: local
     hooks:

@@ -8,12 +8,12 @@ from logging import getLogger
 from os import getenv
 from typing import Annotated, Any, ClassVar, Literal, overload
 
+from _helpers import add_stream_handler
 from fastapi.params import Path
 from schemas import ITEM_TYPE_TYPES, DefaultFunction, GeneralItemModelType
 from sqlalchemy import Table
 from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker  # type: ignore[attr-defined]
-from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))

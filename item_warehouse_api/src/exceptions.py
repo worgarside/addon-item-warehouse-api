@@ -9,8 +9,8 @@ from json import dumps
 from logging import getLogger
 from os import environ, getenv
 
+from _helpers import add_stream_handler
 from fastapi import HTTPException, status
-from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
