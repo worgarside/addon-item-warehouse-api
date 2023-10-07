@@ -22,7 +22,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    FieldValidationInfo,
+    ValidationInfo,
     field_serializer,
     field_validator,
     model_validator,
@@ -262,9 +262,8 @@ class ItemFieldDefinition(BaseModel, Generic[SqlT]):
         return typ.__name__.lower()
 
     @field_validator("type", mode="before")
-    def validate_type(
-        cls, typ: str | SqlT, info: FieldValidationInfo  # noqa: N805
-    ) -> SqlT:
+    @classmethod
+    def validate_type(cls, typ: str | SqlT, info: ValidationInfo) -> SqlT:
         """Validate the ItemFieldDefinition type field."""
 
         if isinstance(typ, str):
@@ -295,8 +294,9 @@ class ItemFieldDefinition(BaseModel, Generic[SqlT]):
         return typ  # type: ignore[return-value]
 
     @field_validator("default", mode="before")
+    @classmethod
     def validate_default(
-        cls, default: PythonType | DefaultFunction[PythonType]  # noqa: N805
+        cls, default: PythonType | DefaultFunction[PythonType]
     ) -> PythonType | DefaultFunction[PythonType]:
         """Validate the ItemFieldDefinition default field."""
 
@@ -317,9 +317,8 @@ class ItemFieldDefinition(BaseModel, Generic[SqlT]):
         return default
 
     @model_validator(mode="before")
-    def validate_model(
-        cls, values: dict[str, object]  # noqa: N805
-    ) -> dict[str, object]:
+    @classmethod
+    def validate_model(cls, values: dict[str, object]) -> dict[str, object]:
         """Either validate or populate the display_as field."""
 
         if not values.get("display_as"):
@@ -364,7 +363,8 @@ class WarehouseBase(BaseModel):
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
 
     @field_validator("name")
-    def validate_name(cls, name: str) -> str:  # noqa: N805
+    @classmethod
+    def validate_name(cls, name: str) -> str:
         """Validate the Warehouse name."""
         if name == "warehouse":
             raise ValueError("Warehouse name 'warehouse' is reserved.")  # noqa: TRY003
@@ -450,9 +450,8 @@ class ItemBase(BaseModel):
     }
 
     @model_validator(mode="before")
-    def validate_model(
-        cls, values: dict[str, object]  # noqa: N805
-    ) -> dict[str, object]:
+    @classmethod
+    def validate_model(cls, values: dict[str, object]) -> dict[str, object]:
         """Validate the Item model."""
 
         client_ip = values.pop("_request.client.host", None)
