@@ -8,13 +8,14 @@ from logging import getLogger
 from os import getenv
 from typing import Any, ClassVar, Self
 
+from _helpers import add_stream_handler
 from database import Base
 from exceptions import DuplicateFieldError, InvalidFieldsError, WarehouseNotFoundError
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    FieldValidationInfo,
+    ValidationInfo,
     create_model,
     field_serializer,
     field_validator,
@@ -37,7 +38,6 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlalchemy.sql.elements import BooleanClauseList
-from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
@@ -337,8 +337,9 @@ class ItemPage(_Page):
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
 
     @field_validator("fields", mode="before")
+    @classmethod
     def validate_fields(
-        cls, _: list[str] | None, info: FieldValidationInfo  # noqa: N805
+        cls, _: list[str] | None, info: ValidationInfo
     ) -> list[str] | None:
         """Ensure fields is populated if include_fields is True."""
 

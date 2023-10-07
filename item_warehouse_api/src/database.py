@@ -8,12 +8,12 @@ from logging import getLogger
 from os import getenv
 from typing import Annotated, Any, ClassVar, Literal, overload
 
+from _helpers import add_stream_handler
 from fastapi.params import Path
 from schemas import ITEM_TYPE_TYPES, DefaultFunction, GeneralItemModelType
 from sqlalchemy import Table
 from sqlalchemy.engine import Engine, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker  # type: ignore[attr-defined]
-from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
@@ -84,7 +84,7 @@ else:
         DATABASE_NAME = _getenv("DATABASE_NAME", "item_warehouse")
 
         LOGGER.info("Using environment variables for database connection.")
-        SQLALCHEMY_DATABASE_URL = f"{DATABASE_DRIVER_NAME}://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}?charset=utf8mb4"  # noqa: E501
+        SQLALCHEMY_DATABASE_URL = f"{DATABASE_DRIVER_NAME}://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}?charset=utf8mb4"
     except KeyError as exc:
         raise RuntimeError(  # noqa: TRY003
             f"Missing environment variable: {exc!s}"

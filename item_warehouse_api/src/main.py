@@ -25,6 +25,7 @@ from typing import Annotated, Any, Literal
 
 import crud
 from _dependencies import get_db
+from _helpers import add_stream_handler
 from database import SQLALCHEMY_DATABASE_URL, Base, SessionLocal, SqlStrPath
 from exceptions import ItemSchemaExistsError, WarehouseExistsError
 from fastapi import Body, Depends, FastAPI, Request, Response, status
@@ -47,7 +48,6 @@ from schemas import (
 )
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from wg_utilities.loggers import add_stream_handler
 
 LOGGER = getLogger(__name__)
 LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
