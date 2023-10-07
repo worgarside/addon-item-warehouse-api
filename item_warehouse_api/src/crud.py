@@ -403,7 +403,7 @@ def get_item_by_pk(
     return item.as_dict(include=field_names)
 
 
-def get_items(  # noqa: PLR0912
+def get_items(
     db: Session,
     /,
     warehouse_name: SqlStrPath,
@@ -463,19 +463,19 @@ def get_items(  # noqa: PLR0912
         # Always include PK for uniqueness
         field_names.extend(warehouse.pk_name)
 
+        field_names = sorted(set(field_names))
+
         try:
             fields = tuple(
-                getattr(warehouse.item_model, field_name)
-                for field_name in sorted(set(field_names))
+                getattr(warehouse.item_model, field_name) for field_name in field_names
             )
         except AttributeError as exc:
             raise InvalidFieldsError(exc.name) from exc
 
         query = db.query(*fields)
 
-    if search_params:
-        for k, v in search_params.items():
-            query = query.filter(getattr(warehouse.item_model, k) == v)
+    for k, v in search_params.items():
+        query = query.filter(getattr(warehouse.item_model, k) == v)
 
     if order_by:
         try:
