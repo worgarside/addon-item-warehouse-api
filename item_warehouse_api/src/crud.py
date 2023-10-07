@@ -457,14 +457,16 @@ def get_items(  # noqa: PLR0912
     if not field_names:
         query: Query[Warehouse] = db.query(warehouse.item_model)
     else:
-        if order_by and order_by not in field_names:
+        if order_by:
             field_names.append(order_by)
 
-        field_names = sorted(field_names)
+        # Always include PK for uniqueness
+        field_names.extend(warehouse.pk_name)
 
         try:
             fields = tuple(
-                getattr(warehouse.item_model, field_name) for field_name in field_names
+                getattr(warehouse.item_model, field_name)
+                for field_name in sorted(set(field_names))
             )
         except AttributeError as exc:
             raise InvalidFieldsError(exc.name) from exc
