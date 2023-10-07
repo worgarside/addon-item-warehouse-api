@@ -403,7 +403,7 @@ def get_item_by_pk(
     return item.as_dict(include=field_names)
 
 
-def get_items(  # noqa: PLR0912
+def get_items(
     db: Session,
     /,
     warehouse_name: SqlStrPath,
@@ -457,10 +457,13 @@ def get_items(  # noqa: PLR0912
     if not field_names:
         query: Query[Warehouse] = db.query(warehouse.item_model)
     else:
-        if order_by and order_by not in field_names:
+        if order_by:
             field_names.append(order_by)
 
-        field_names = sorted(field_names)
+        # Always include PK for uniqueness
+        field_names.extend(warehouse.pk_name)
+
+        field_names = sorted(set(field_names))
 
         try:
             fields = tuple(
@@ -471,9 +474,8 @@ def get_items(  # noqa: PLR0912
 
         query = db.query(*fields)
 
-    if search_params:
-        for k, v in search_params.items():
-            query = query.filter(getattr(warehouse.item_model, k) == v)
+    for k, v in search_params.items():
+        query = query.filter(getattr(warehouse.item_model, k) == v)
 
     if order_by:
         try:
