@@ -106,7 +106,7 @@ repos:
         additional_dependencies:
           - bidict==0.22.1
           - fastapi==0.103.2
-          - pydantic==2.2.0
+          - pydantic==2.4.2
           - sqlalchemy==2.0.21
           - sqlalchemy-stubs
           - uvicorn==0.23.2
@@ -125,7 +125,7 @@ repos:
         types:
           - python
         additional_dependencies:
-          - pylint==2.17.5
+          - pylint==2.17.7
           - pylint-strict-informational==0.1
 
   - repo: https://github.com/pre-commit/pygrep-hooks

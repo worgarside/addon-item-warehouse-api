@@ -15,7 +15,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    FieldValidationInfo,
+    ValidationInfo,
     create_model,
     field_serializer,
     field_validator,
@@ -337,8 +337,9 @@ class ItemPage(_Page):
     model_config: ClassVar[ConfigDict] = {"arbitrary_types_allowed": True}
 
     @field_validator("fields", mode="before")
+    @classmethod
     def validate_fields(
-        cls, _: list[str] | None, info: FieldValidationInfo  # noqa: N805
+        cls, _: list[str] | None, info: ValidationInfo
     ) -> list[str] | None:
         """Ensure fields is populated if include_fields is True."""
 
