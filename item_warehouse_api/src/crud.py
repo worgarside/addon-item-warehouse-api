@@ -255,7 +255,7 @@ def update_schema(
         raise InvalidFieldsError(field_name)
 
     if (display_as := schema["display_as"]) == DisplayType.RESET:
-        warehouse.item_schema[field_name]["display_as"] = DisplayType.from_type_name(  # type: ignore[index] # noqa: E501
+        warehouse.item_schema[field_name]["display_as"] = DisplayType.from_type_name(  # type: ignore[index]
             warehouse.item_schema[field_name]["type"]  # type: ignore[index]
         )
     else:

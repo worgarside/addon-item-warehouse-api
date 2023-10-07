@@ -84,7 +84,7 @@ else:
         DATABASE_NAME = _getenv("DATABASE_NAME", "item_warehouse")
 
         LOGGER.info("Using environment variables for database connection.")
-        SQLALCHEMY_DATABASE_URL = f"{DATABASE_DRIVER_NAME}://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}?charset=utf8mb4"  # noqa: E501
+        SQLALCHEMY_DATABASE_URL = f"{DATABASE_DRIVER_NAME}://{DATABASE_USERNAME}:{DATABASE_PASSWORD}@{DATABASE_HOST}:{DATABASE_PORT}/{DATABASE_NAME}?charset=utf8mb4"
     except KeyError as exc:
         raise RuntimeError(  # noqa: TRY003
             f"Missing environment variable: {exc!s}"
