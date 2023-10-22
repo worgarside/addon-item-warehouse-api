@@ -12,7 +12,7 @@ jobs:
     uses: worgarside/github-config-files/.github/workflows/__ci_validation.yml@main
     with:
       build-branch: ${{ github.ref }}
-      build-type: python
+      build-type: ''
       node-build-directory: ''
       python-version: '3.11'
       unit-test: ''
@@ -26,7 +26,7 @@ jobs:
     uses: worgarside/github-config-files/.github/workflows/__ci_deployment.yml@main
     with:
       build-branch: ${{ github.ref }}
-      build-type: python
+      build-type: ''
       deploy-to: ''
       node-build-directory: ''
       path-to-__version__-file: ''
