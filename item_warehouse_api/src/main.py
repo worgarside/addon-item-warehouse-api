@@ -1,26 +1,13 @@
 """API for managing warehouses and items."""
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
-from traceback import format_exception
-
-try:
-    from enum import StrEnum, auto
-except ImportError:
-    # pylint: disable=ungrouped-imports
-    from sys import version
-
-    if not version.startswith("3.10"):
-        raise
-
-    # This is just for Pynguin
-    from enum import auto  # noqa: I001
-    from strenum import StrEnum  # type: ignore[import,no-redef]
-
-from collections.abc import AsyncIterator  # noqa: I001
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from enum import StrEnum, auto
 from json import dumps
 from logging import getLogger
 from os import getenv
+from traceback import format_exception
 from typing import Annotated, Any, Literal
 
 import crud
