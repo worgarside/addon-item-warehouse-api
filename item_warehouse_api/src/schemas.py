@@ -9,7 +9,7 @@ from logging import getLogger
 from os import getenv
 from re import Pattern
 from re import compile as re_compile
-from typing import TYPE_CHECKING, Annotated, ClassVar, Generic, Literal, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Generic, Literal, TypeVar
 from uuid import uuid4
 
 from _helpers import add_stream_handler
@@ -63,7 +63,7 @@ ItemAttributeType = (
     | type[Double]
 )
 
-PythonType = int | str | datetime | date | bool | dict | float | None
+PythonType = int | str | datetime | date | bool | dict[str, Any] | float | None
 
 STRING_REQUIRES_LENGTH = (
     getenv("DATABASE_DRIVER_NAME", "+pymysql").split("+")[-1] == "pymysql"
