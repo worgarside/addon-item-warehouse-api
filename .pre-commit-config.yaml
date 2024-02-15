@@ -104,7 +104,7 @@ repos:
           - --strict
           - --show-error-codes
         additional_dependencies:
-          - bidict==0.22.1
+          - bidict==0.23.0
           - fastapi==0.108.0
           - pydantic==2.4.2
           - sqlalchemy==2.0.25
