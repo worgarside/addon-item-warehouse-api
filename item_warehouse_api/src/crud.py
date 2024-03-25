@@ -76,15 +76,13 @@ def delete_warehouse(db: Session, /, warehouse_name: SqlStrPath) -> None:
 @overload
 def get_warehouse(
     db: Session, /, name: SqlStrPath, *, no_exist_ok: Literal[False] = False
-) -> Warehouse:
-    ...
+) -> Warehouse: ...
 
 
 @overload
 def get_warehouse(
     db: Session, /, name: SqlStrPath, *, no_exist_ok: Literal[True] = True
-) -> Warehouse | None:
-    ...
+) -> Warehouse | None: ...
 
 
 def get_warehouse(
@@ -177,8 +175,7 @@ def get_schema(
     item_name: SqlStrPath | None = ...,
     warehouse_name: SqlStrPath | None = ...,
     no_exist_ok: Literal[False] = False,
-) -> ItemSchema:
-    ...
+) -> ItemSchema: ...
 
 
 @overload
@@ -189,8 +186,7 @@ def get_schema(
     item_name: SqlStrPath | None = ...,
     warehouse_name: SqlStrPath | None = ...,
     no_exist_ok: Literal[True] = True,
-) -> ItemSchema | None:
-    ...
+) -> ItemSchema | None: ...
 
 
 def get_schema(
@@ -340,8 +336,7 @@ def get_item_by_pk(
     field_names: list[str] | None = None,
     *,
     no_exist_ok: Literal[False] = False,
-) -> GeneralItemModelType:
-    ...
+) -> GeneralItemModelType: ...
 
 
 @overload
@@ -353,8 +348,7 @@ def get_item_by_pk(
     field_names: list[str] | None = None,
     *,
     no_exist_ok: Literal[True] = True,
-) -> GeneralItemModelType | None:
-    ...
+) -> GeneralItemModelType | None: ...
 
 
 def get_item_by_pk(
