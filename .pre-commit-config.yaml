@@ -107,7 +107,7 @@ repos:
           - bidict==0.22.1
           - fastapi==0.108.0
           - pydantic==2.4.2
-          - sqlalchemy==2.0.30
+          - sqlalchemy==2.0.31
           - sqlalchemy-stubs
           - uvicorn==0.25.0
 
