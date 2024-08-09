@@ -15,7 +15,7 @@ LOGGER.setLevel(getenv("LOG_LEVEL", "DEBUG"))
 add_stream_handler(LOGGER)
 
 
-def get_db(session_name: str = "") -> Generator[Session, None, None]:
+def get_db(session_name: str = "") -> Generator[Session]:
     """Get a database connection, and safely close it when done."""
 
     db = SessionLocal()

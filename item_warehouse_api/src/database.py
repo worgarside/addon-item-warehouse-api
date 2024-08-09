@@ -21,22 +21,19 @@ add_stream_handler(LOGGER)
 
 
 @overload
-def _getenv(env_var_name: str, /, default: str, *, no_exist_ok: bool = ...) -> str:
-    ...
+def _getenv(env_var_name: str, /, default: str, *, no_exist_ok: bool = ...) -> str: ...
 
 
 @overload
 def _getenv(
     env_var_name: str, /, default: None = ..., *, no_exist_ok: Literal[True] = True
-) -> str:
-    ...
+) -> str: ...
 
 
 @overload
 def _getenv(
     env_var_name: str, /, default: None = ..., *, no_exist_ok: Literal[False] = False
-) -> str | None:
-    ...
+) -> str | None: ...
 
 
 def _getenv(
@@ -174,9 +171,11 @@ class _BaseExtra:
 _BaseExtra.ENGINE = create_engine(
     SQLALCHEMY_DATABASE_URL,
     json_serializer=_BaseExtra._custom_json_serializer,  # pylint: disable=protected-access
-    connect_args={"check_same_thread": False}
-    if SQLALCHEMY_DATABASE_URL.startswith("sqlite")
-    else {},
+    connect_args=(
+        {"check_same_thread": False}
+        if SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+        else {}
+    ),
 )
 
 Base = declarative_base(cls=_BaseExtra)

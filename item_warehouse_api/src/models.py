@@ -1,4 +1,5 @@
 """SQLAlchemy models for item_warehouse."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -184,9 +185,9 @@ class Warehouse(Base):  # type: ignore[misc]
                 if field_name in model_fields:
                     raise DuplicateFieldError(field_name)
 
-                field_definition: ItemFieldDefinition[
-                    ItemAttributeType
-                ] = ItemFieldDefinition.model_validate(_field_def)
+                field_definition: ItemFieldDefinition[ItemAttributeType] = (
+                    ItemFieldDefinition.model_validate(_field_def)
+                )
 
                 model_fields[field_name] = field_definition.model_dump_column(
                     field_name=field_name
