@@ -9,7 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.112.0"
-sqlalchemy = "^2.0.31"
+sqlalchemy = "^2.0.32"
 python-dotenv = "^1.0.1"
 pymysql = "^1.1.1"
 requests = "^2.32.3"
