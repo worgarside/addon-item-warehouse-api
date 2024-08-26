@@ -1,4 +1,5 @@
 """The schemas - valid data shapes - for the item_warehouse app."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -229,9 +230,9 @@ class ItemFieldDefinition(BaseModel, Generic[SqlT]):
     default: PythonType | DefaultFunction[PythonType] = None
     index: bool | None = None
     key: SqlStr | None = None
-    nullable: bool | Literal[  # type: ignore[valid-type]
+    nullable: bool | Literal[NULL_UNSPECIFIED] = (  # type: ignore[valid-type]
         NULL_UNSPECIFIED
-    ] = NULL_UNSPECIFIED
+    )
     primary_key: bool = False
     type_kwargs: dict[SqlStr, PythonType] = Field(default_factory=dict)
     type: SqlT  # noqa: A003
