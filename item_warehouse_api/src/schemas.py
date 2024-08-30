@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from enum import Enum, StrEnum
 from json import dumps
 from logging import getLogger
@@ -157,9 +157,10 @@ class DefaultFunction(UserDefinedType[DFT]):
 
     _FUNCTIONS: MutableBidict[str, DefaultFunctionType[PythonType]] = bidict(
         {
-            "client_ip": lambda: 0,  # Always overridden in ItemBase.model_validate
+            # IP is always overridden in ItemBase.model_validate
+            "client_ip": lambda: 0,  # type: ignore[arg-type]
             "today": date.today,
-            "utcnow": datetime.utcnow,
+            "utcnow": lambda: datetime.now(UTC),
             "uuid4": lambda: str(uuid4()),
         }
     )
