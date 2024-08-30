@@ -1,4 +1,5 @@
 """API for managing warehouses and items."""
+
 from __future__ import annotations  # noqa: I001
 
 from collections.abc import AsyncIterator
@@ -410,26 +411,30 @@ def get_items(
             description="Include the fields in the response.",
         ),
     ] = False,
-    fields: Annotated[
-        str,
-        Query(
-            default=None,
-            example="age,salary,name,alive",
-            description="A comma-separated list of fields to return.",
-            pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
-        ),
-    ]
-    | None = None,
-    order_by: Annotated[
-        str,
-        Query(
-            default=None,
-            example="age",
-            description="A comma-separated list of fields to order by.",
-            pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
-        ),
-    ]
-    | None = None,
+    fields: (
+        Annotated[
+            str,
+            Query(
+                default=None,
+                example="age,salary,name,alive",
+                description="A comma-separated list of fields to return.",
+                pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
+            ),
+        ]
+        | None
+    ) = None,
+    order_by: (
+        Annotated[
+            str,
+            Query(
+                default=None,
+                example="age",
+                description="A comma-separated list of fields to order by.",
+                pattern=r"^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$",
+            ),
+        ]
+        | None
+    ) = None,
     ascending: Annotated[
         bool,
         Query(
