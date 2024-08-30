@@ -109,7 +109,7 @@ repos:
           - pydantic==2.4.2
           - sqlalchemy==2.0.32
           - sqlalchemy-stubs
-          - uvicorn==0.30.3
+          - uvicorn==0.30.6
 
   - repo: local
     hooks:
