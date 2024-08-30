@@ -81,7 +81,7 @@ class ItemType(Enum):
     date: ItemAttributeType = Date
     boolean: ItemAttributeType = Boolean
     json: ItemAttributeType = JSON
-    float: ItemAttributeType = Float  # noqa: A003
+    float: ItemAttributeType = Float
     double: ItemAttributeType = Double
 
 
@@ -235,7 +235,7 @@ class ItemFieldDefinition(BaseModel, Generic[SqlT]):
     )
     primary_key: bool = False
     type_kwargs: dict[SqlStr, PythonType] = Field(default_factory=dict)
-    type: SqlT  # noqa: A003
+    type: SqlT
     unique: bool | None = None
 
     display_as: DisplayType

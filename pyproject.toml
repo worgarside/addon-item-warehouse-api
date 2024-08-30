@@ -70,6 +70,7 @@ all = true
 no_gitignore = false
 
 [tool.ruff]
+fix = true
 line-length = 100
 select = [
   # https://github.com/astral-sh/ruff#supported-rules
